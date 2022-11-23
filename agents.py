@@ -105,7 +105,8 @@ class DQN():
 				m.weight.data *= 1 / torch.sqrt(m.weight.data.pow(2).sum(1, keepdim=True))
 
 	def __init__(self, player, seed=0, nStates=156, nActions=11, nNeurons=30, ID="DQN",
-			tau=1, alpha=1e-1, gamma=0.9, explore='linear', update='SARSA', nGames=100, w_s=1, w_o=0, w_i=0, representation="one-hot", normalize=False):
+			tau=1, alpha=1e-1, gamma=0.9, explore='linear', update='SARSA',
+			nGames=100, w_s=1, w_o=0, w_i=0, representation="one-hot", normalize=False):
 		self.player = player
 		self.ID = ID
 		self.seed = seed

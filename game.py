@@ -19,7 +19,8 @@ class Game():
 		self.rT = []
 		self.train = train
 
-def play_game(investor, trustee, gameID, dfs, train):
+def play_game(investor, trustee, gameID, train):
+	dfs = []
 	columns = ('ID', 'opponent', 'player', 'game', 'turn', 'generosity', 'coins')
 	game = Game(train=train)
 	investor.new_game(game)
@@ -42,21 +43,3 @@ def play_game(investor, trustee, gameID, dfs, train):
 		investor.learn(game)
 		trustee.learn(game)
 	return dfs
-
-def run(investors, trustees, player, nGames, verbose=False, train=True):
-	agents = investors if player=='investor' else trustees
-	opponents = trustees if player=='investor' else investors
-	dfs = []
-	for agent in agents:
-		print(f"{agent.ID}")
-		for g in range(nGames):
-			start_time = time.time()
-			if player=='investor':
-				dfs = play_game(agent, trustees[g], gameID=g, dfs=dfs, train=train)
-			elif player=='trustee':
-				dfs = play_game(investors[g], agent, gameID=g, dfs=dfs, train=train)
-			end_time = time.time()
-			if verbose: print(f"game {g}, execution time {end_time-start_time:.3}")
-		del(agent)
-	data = pd.concat([df for df in dfs], ignore_index=True)
-	return data
