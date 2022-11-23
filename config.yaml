@@ -1,0 +1,14 @@
+experimentName: nni_score
+searchSpaceFile: search_space.json
+trialCommand: python nni_score.py
+trialCodeDirectory: .
+trialConcurrency: 8
+maxExperimentDuration: 1h
+maxTrialNumber: 1000
+tuner:
+  name: TPE
+  classArgs:
+    optimize_mode: maximize
+trainingService:
+  platform: local
+  useActiveGpu: False
