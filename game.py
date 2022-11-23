@@ -48,7 +48,7 @@ def run(investors, trustees, player, nGames, verbose=False, train=True):
 	opponents = trustees if player=='investor' else investors
 	dfs = []
 	for agent in agents:
-		print(f"{agent.ID} vs {opponents[0].ID}")
+		print(f"{agent.ID}")
 		for g in range(nGames):
 			start_time = time.time()
 			if player=='investor':

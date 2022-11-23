@@ -39,6 +39,7 @@ def main(args):
                     alpha=args['alpha'],
                     gamma=args['gamma'],
                     explore=args['explore'],
+                    update=args['update'],
                     nGames=nGames_train,
                     w_s=args['w_s'],
                     w_o=args['w_o'],
@@ -68,6 +69,7 @@ if __name__ == '__main__':
         'alpha': 0.1,
         'gamma': 0.9,
         'explore': 'exponential',
+        'update': 'SARSA',
         'w_s': 1.0,
         'w_o': 0.0,
         'w_i': 0.0,
@@ -76,3 +78,6 @@ if __name__ == '__main__':
     optimized_params = nni.get_next_parameter()
     params.update(optimized_params)
     main(params)
+
+# "w_o": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
+# "w_i": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
