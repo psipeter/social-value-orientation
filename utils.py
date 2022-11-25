@@ -3,8 +3,9 @@ import random
 import pandas as pd
 import torch
 import nengo
+import scipy
 
-def get_state(player, game, agent, dim=0, turn_basis=None, coin_basis=None, turn_exp=None, coin_exp=None, representation="one-hot"):
+def get_state(player, game, agent, dim=0, vTurn=None, vCoin=None, eTurn=None, eCoin=None, representation="one-hot"):
 	t = len(game.giveI) if player=='investor' else len(game.giveT)
 	if agent=='TQ':
 		index = t if player=='investor' else t * (game.coins*game.match+1) + game.investor_give[-1]*game.match
@@ -20,20 +21,27 @@ def get_state(player, game, agent, dim=0, turn_basis=None, coin_basis=None, turn
 			return t, game.coins
 		else:
 			return t, game.giveI[-1]*game.match
-	if agent=="SPA":
-		if representation=="ssp":
+	if agent=="NEF":
+		if representation=="SSP":
 			c = game.coins if player=='investor' else game.giveI[-1]*game.match
-			vector = encode_state(t, c, turn_basis, coin_basis, turn_exp, coin_exp) if t<5 else np.zeros((dim))
+			vector = encode_state(t, c, vTurn, vCoin, eTurn, eCoin) if t<5 else np.zeros((dim))
 			return vector
 
 def generosity(player, give, keep):
 	return np.NaN if give+keep==0 and player=='trustee' else give/(give+keep)
 
-def encode_state(t, c, turn_basis, coin_basis, turn_exp=1.0, coin_exp=1.0):
-	return np.fft.ifft(turn_basis**(t*turn_exp) * coin_basis**(c*coin_exp)).real.squeeze()
+def encode_state(t, c, vTurn, vCoin, eTurn=1.0, eCoin=1.0):
+	return np.fft.ifft(vTurn**(t*eTurn) * vCoin**(c*eCoin)).real.squeeze()
 
 def make_unitary(v):
 	return v/np.absolute(v)
+
+def sparsity_to_x_intercept(d, p):
+	sign = 1
+	if p > 0.5:
+		p = 1.0 - p
+		sign = -1
+	return sign * np.sqrt(1-scipy.special.betaincinv((d-1)/2.0, 0.5, 2*p))
 
 def measure_sparsity(spikes1, spikes2):
 	nNeurons = spikes1.shape[0]

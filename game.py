@@ -3,6 +3,7 @@ import random
 import pandas as pd
 import time
 from utils import *
+from agents import NEF
 
 class Game():
 	def __init__(self, coins=10, match=3, turns=5, train=True):
@@ -39,7 +40,10 @@ def play_game(investor, trustee, gameID, train):
 		game.rT.append(keepT)
 		dfs.append(pd.DataFrame([[investor.ID, trustee.ID, 'investor', gameID, t, game.genI[t], game.rI[t]]], columns=columns))
 		dfs.append(pd.DataFrame([[trustee.ID, investor.ID, 'trustee', gameID, t, game.genT[t], game.rT[t]]], columns=columns))		
-	if game.train:  
+	if game.train:
+		if isinstance(investor, NEF) or isinstance(trustee, NEF):  # extra turn for nengo learning
+			_, _ = investor.move(game)
+			_, _ = trustee.move(game)
 		investor.learn(game)
 		trustee.learn(game)
 	return dfs
