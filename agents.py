@@ -273,11 +273,18 @@ class IBL():
 
 	def populate_working_memory(self, turn, coins, game):
 		self.working_memory.clear()
+		# yes = 0
+		# no = 0
 		for chunk in self.declarative_memory:
 			A = chunk.get_activation(self.episode, self.rng)
 			S = 1 if turn==chunk.turn and coins==chunk.coins else 0
+			# if A>self.thrA:
+			# 	yes += 1
+			# else:
+			# 	no += 1
 			if A > self.thrA and S > 0:
 				self.working_memory.append(chunk)
+		# print('yes', yes, 'no', no)
 
 	def select_action(self):
 		if len(self.working_memory)==0:
@@ -361,7 +368,7 @@ class NEF():
 			alpha=3e-8, gamma=0.6, tau=1, nEns=1000, nArr=500, explore='linear', nGames=100,
 			nStates=100, sparsity=0.05, eTurn=3, eCoin=0.3, eIter=10,
 			neuronType=nengo.LIFRate(), maxRates=Uniform(300, 400), normalize=False,
-			dt=1e-3, t1=2e-1, t2=2e-1, t3=2e-1, tR=1e-2,
+			dt=1e-3, t1=2e-1, t2=2e-1, t3=2e-1, tR=2e-2,
 			w_s=1, w_o=0, w_i=0):
 		self.player = player
 		self.ID = ID
@@ -507,72 +514,72 @@ class NEF():
 
 	def generateEncoders(self, save=True):
 
-		try:
-			encoders = np.load(f"data/NEF_encoders_seed{self.seed}.npz")['encoders']
+		# try:
+		# 	encoders = np.load(f"data/NEF_encoders_seed{self.seed}.npz")['encoders']
+		# 	assert encoders.shape[0] == self.nStates
+		# except:
+		class NodeInput():
+			def __init__(self, dim):
+				self.state = np.zeros((dim))
+			def set_state(self, state):
+				self.state = state
+			def get_state(self):
+				return self.state
 
-		except:
-			class NodeInput():
-				def __init__(self, dim):
-					self.state = np.zeros((dim))
-				def set_state(self, state):
-					self.state = state
-				def get_state(self):
-					return self.state
+		ssp_input = NodeInput(self.nStates)
+		encoders = self.sampler.sample(self.nEns, self.nStates, rng=self.rng)
+		for i in range(self.eIter):
+			network = nengo.Network(seed=self.seed)
+			network.config[nengo.Ensemble].neuron_type = self.neuronType
+			network.config[nengo.Ensemble].max_rates = self.maxRates
+			network.config[nengo.Probe].synapse = None
+			with network:
+				ssp_node = nengo.Node(lambda t, x: ssp_input.get_state(), size_in=2, size_out=self.nStates)
+				ens = nengo.Ensemble(self.nEns, self.nStates, encoders=encoders, intercepts=self.intercept)
+				nengo.Connection(ssp_node, ens, synapse=None, seed=self.seed)
+				p_spikes = nengo.Probe(ens.neurons, synapse=None)
+			sim = nengo.Simulator(network, progress_bar=False)
 
-			ssp_input = NodeInput(self.nStates)
-			encoders = self.sampler.sample(self.nEns, self.nStates, rng=self.rng)
-			for i in range(self.eIter):
-				network = nengo.Network(seed=self.seed)
-				network.config[nengo.Ensemble].neuron_type = self.neuronType
-				network.config[nengo.Ensemble].max_rates = self.maxRates
-				network.config[nengo.Probe].synapse = None
-				with network:
-					ssp_node = nengo.Node(lambda t, x: ssp_input.get_state(), size_in=2, size_out=self.nStates)
-					ens = nengo.Ensemble(self.nEns, self.nStates, encoders=encoders, intercepts=self.intercept)
-					nengo.Connection(ssp_node, ens, synapse=None, seed=self.seed)
-					p_spikes = nengo.Probe(ens.neurons, synapse=None)
-				sim = nengo.Simulator(network, progress_bar=False)
+			spikes = []
+			trials = []
+			for turn in range(5):
+				for coin in range(31):
+					trials.append([turn, coin])
+					sim.reset(self.seed)
+					ssp = encode_state(turn, coin, vTurn=self.vTurn, vCoin=self.vCoin, eTurn=self.eTurn, eCoin=self.eCoin)
+					ssp_input.set_state(ssp)
+					sim.run(0.001, progress_bar=False)
+					spk = sim.data[p_spikes][-1]
+					spikes.append(spk)
+			spikes = np.array(spikes)
+			inactives = list(np.where(np.sum(spikes, axis=0)==0)[0])
 
-				spikes = []
-				trials = []
-				for turn in range(5):
-					for coin in range(31):
-						trials.append([turn, coin])
-						sim.reset(self.seed)
-						ssp = encode_state(turn, coin, vTurn=self.vTurn, vCoin=self.vCoin, eTurn=self.eTurn, eCoin=self.eCoin)
-						ssp_input.set_state(ssp)
-						sim.run(0.001, progress_bar=False)
-						spk = sim.data[p_spikes][-1]
-						spikes.append(spk)
-				spikes = np.array(spikes)
-				inactives = list(np.where(np.sum(spikes, axis=0)==0)[0])
-
-				non_uniques = []
-				for pair in itertools.combinations(range(5*31), 2):
-					spikes_a = spikes[pair[0]]
-					spikes_b = spikes[pair[1]]
-					for n in range(self.nEns):
-						s_a = spikes_a[n]
-						s_b = spikes_b[n]
-						if s_a>0 and s_b>0 and -1 < s_a-s_b < 1:
-							non_uniques.append(n)
-
-				bad_neurons = np.sort(np.unique(inactives+non_uniques))
-				# print(f"iteration {i}")
-				# print(f"non unique neurons: {len(np.sort(np.unique(non_uniques)))}")
-				# print(f"quiet neurons: {len(inactives)}")
-				# print(f"non unique neurons: {np.sort(np.unique(non_uniques))}")
-				# print(f"quiet neurons: {inactives}")
-				if len(bad_neurons)==0: break
-
-				new_encoders = self.sampler.sample(self.nEns, self.nStates, rng=self.rng)
+			non_uniques = []
+			for pair in itertools.combinations(range(5*31), 2):
+				spikes_a = spikes[pair[0]]
+				spikes_b = spikes[pair[1]]
 				for n in range(self.nEns):
-					if n not in bad_neurons:
-						new_encoders[n] = encoders[n]
-				encoders = np.array(new_encoders)
+					s_a = spikes_a[n]
+					s_b = spikes_b[n]
+					if s_a>0 and s_b>0 and -1 < s_a-s_b < 1:
+						non_uniques.append(n)
 
-			if save:
-				np.savez(f"data/NEF_encoders_seed{self.seed}.npz", encoders=encoders)
+			bad_neurons = np.sort(np.unique(inactives+non_uniques))
+			# print(f"iteration {i}")
+			# print(f"non unique neurons: {len(np.sort(np.unique(non_uniques)))}")
+			# print(f"quiet neurons: {len(inactives)}")
+			# print(f"non unique neurons: {np.sort(np.unique(non_uniques))}")
+			# print(f"quiet neurons: {inactives}")
+			if len(bad_neurons)==0: break
+
+			new_encoders = self.sampler.sample(self.nEns, self.nStates, rng=self.rng)
+			for n in range(self.nEns):
+				if n not in bad_neurons:
+					new_encoders[n] = encoders[n]
+			encoders = np.array(new_encoders)
+
+		# if save:
+		# 	np.savez(f"data/NEF_encoders_seed{self.seed}.npz", encoders=encoders)
 			
 		return encoders
 

@@ -2,7 +2,7 @@ experimentName: nni_score
 searchSpaceFile: search_space.json
 trialCommand: python nni_score.py
 trialCodeDirectory: .
-trialConcurrency: 8
+trialConcurrency: 4
 maxExperimentDuration: 1h
 maxTrialNumber: 1000
 tuner:

@@ -1,8 +1,7 @@
 {
-    "nNeurons": {"_type":"randint","_value":[1, 100]},
-    "tau": {"_type":"quniform","_value":[0.0, 10.0, 0.1]},
-    "alpha": {"_type":"qloguniform","_value":[0.001, 10.0, 0.001]},
+    "nEns": {"_type":"randint","_value":[300, 300]},
+    "nArr": {"_type":"randint","_value":[100, 110]},
+    "nStates": {"_type":"randint","_value":[10, 20]},
+    "alpha": {"_type":"qloguniform","_value":[1e-8, 1e-6, 1e-8]},
     "gamma": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
-    "explore": {"_type":"choice","_value":["linear", "exponential"]},
-    "update": {"_type":"choice","_value":["Q-learning", "SARSA"]},
 }

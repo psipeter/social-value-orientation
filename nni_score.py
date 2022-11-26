@@ -13,10 +13,11 @@ from T4T import *
 def run_greedy_trustee(agents, nGames, verbose=False, train=True):
     dfs = []
     for a, agent in enumerate(agents):
-        print(f"{agent.ID}")
+        if verbose: print(f"{agent.ID}")
         seed = a if train else 1000+a
         t4ts = make_greedy_trustees(nGames, seed=seed)
         for g in range(nGames):
+            if verbose: print(f"game {g}")
             df = play_game(agent, t4ts[g], gameID=g, train=train)
             dfs.extend(df)
         del(agent)
@@ -60,10 +61,25 @@ def main(args):
                     w_s=args['w_s'],
                     w_o=args['w_o'],
                     w_i=args['w_i']))
+        elif architecture=='NEF':
+            agents.append(
+                NEF('investor',
+                    ID=f"NEF{n}",
+                    seed=n,
+                    nEns=args['nEns'],
+                    nArr=args['nArr'],
+                    nStates=args['nStates'],
+                    nActions=args['nActions'],
+                    gamma=args['gamma'],
+                    explore=args['explore'],
+                    nGames=nGames_train,
+                    w_s=args['w_s'],
+                    w_o=args['w_o'],
+                    w_i=args['w_i']))
 
     agentIDs = [agent.ID for agent in agents]
-    data_train = run_greedy_trustee(agents, nGames=nGames_train, train=True).query("ID in @agentIDs")
-    data_test = run_greedy_trustee(agents, nGames=nGames_test, train=False).query("ID in @agentIDs")
+    data_train = run_greedy_trustee(agents, nGames=nGames_train, train=True, verbose=True).query("ID in @agentIDs")
+    data_test = run_greedy_trustee(agents, nGames=nGames_test, train=False, verbose=True).query("ID in @agentIDs")
     score = data_test['coins'].mean()
     # score = data_test.query("ID in @agentIDs")['coins'].to_numpy()
     # print(score)
@@ -73,16 +89,19 @@ def main(args):
 
 if __name__ == '__main__':
     params = {
-        'architecture': 'DQN',
-        'nAgents': 50,
-        'nGames_train': 15,
-        'nGames_test': 10,
+        'architecture': 'NEF',
+        'nAgents': 1,
+        'nGames_train': 5,
+        'nGames_test': 1,
         'nActions': 11,
+        'nEns': 1000,
+        'nArr': 100,
+        'nStates': 100,
         'nNeurons': 30,
         'tau': 3,
         'alpha': 0.1,
         'gamma': 0.9,
-        'explore': 'exponential',
+        'explore': 'linear',
         'update': 'SARSA',
         'w_s': 1.0,
         'w_o': 0.0,
@@ -94,3 +113,7 @@ if __name__ == '__main__':
 
 # "w_o": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
 # "w_i": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
+# "explore": {"_type":"choice","_value":["linear", "exponential"]},
+# "tau": {"_type":"quniform","_value":[1.0, 20.0, 0.1]},
+# "nNeurons": {"_type":"randint","_value":[20, 100]},
+# "update": {"_type":"choice","_value":["Q-learning", "SARSA"]},
