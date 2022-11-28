@@ -1,0 +1,14 @@
+experimentName: nni_behavior
+searchSpaceFile: search_space_behavior.json
+trialCommand: python nni_behavior.py
+trialCodeDirectory: .
+trialConcurrency: 8
+maxExperimentDuration: 48h
+maxTrialNumber: 1000
+tuner:
+  name: TPE
+  classArgs:
+    optimize_mode: minimize
+trainingService:
+  platform: local
+  useActiveGpu: False

@@ -77,6 +77,7 @@ def main(args):
                     w_o=args['w_o'],
                     w_i=args['w_i']))
 
+    nni.report_intermediate_result(0)
     agentIDs = [agent.ID for agent in agents]
     data_train = run_greedy_trustee(agents, nGames=nGames_train, train=True, verbose=True).query("ID in @agentIDs")
     data_test = run_greedy_trustee(agents, nGames=nGames_test, train=False, verbose=True).query("ID in @agentIDs")
@@ -84,17 +85,17 @@ def main(args):
     # score = data_test.query("ID in @agentIDs")['coins'].to_numpy()
     # print(score)
 
-    nni.report_intermediate_result(score)
+    # nni.report_intermediate_result(score)
     nni.report_final_result(score)
 
 if __name__ == '__main__':
     params = {
         'architecture': 'NEF',
         'nAgents': 1,
-        'nGames_train': 5,
-        'nGames_test': 1,
+        'nGames_train': 2,
+        'nGames_test': 2,
         'nActions': 11,
-        'nEns': 1000,
+        'nEns': 300,
         'nArr': 100,
         'nStates': 100,
         'nNeurons': 30,
@@ -107,8 +108,8 @@ if __name__ == '__main__':
         'w_o': 0.0,
         'w_i': 0.0,
     }
-    optimized_params = nni.get_next_parameter()
-    params.update(optimized_params)
+    # optimized_params = nni.get_next_parameter()
+    # params.update(optimized_params)
     main(params)
 
 # "w_o": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
