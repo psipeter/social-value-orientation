@@ -3,6 +3,7 @@ import random
 import pandas as pd
 import time
 from utils import *
+from T4T import *
 from agents import NEF
 
 class Game():
@@ -47,3 +48,27 @@ def play_game(investor, trustee, gameID, train):
 		investor.learn(game)
 		trustee.learn(game)
 	return dfs
+
+def run(agents, nGames, opponent, verbose=False, train=True):
+    dfs = []
+    player = agents[0].player
+    for a, agent in enumerate(agents):
+        if verbose: print(f"{agent.ID}")
+        if player=='investor' and opponent=='greedy':
+            t4ts = make_greedy_trustees(nGames, seed=a)
+        elif player=='investor' and opponent=='generous':
+            t4ts = make_generous_trustees(nGames, seed=a)
+        elif player=='trustee' and opponent=='greedy':
+            t4ts = make_greedy_investors(nGames, seed=a)
+        elif player=='trustee' and opponent=='generous':
+            t4ts = make_generous_investors(nGames, seed=a)
+        for g in range(nGames):
+            if verbose: print(f"game {g}")
+            if player=='investor':
+            	df = play_game(agent, t4ts[g], gameID=g, train=train)
+            elif player=='trustee':
+            	df = play_game(t4ts[g], agent, gameID=g, train=train)
+            dfs.extend(df)
+        del(agent)
+    data = pd.concat(dfs, ignore_index=True)
+    return data

@@ -28,12 +28,12 @@ class T4T():
 		if self.player == "investor":
 			if len(game.giveT)==0: return
 			g = game.genT[-1]
-			if np.isnan(genO):
+			if np.isnan(g):
 				# if opponent was skipped last turn, agent state goes from zero to self.C (*self.F)
 				delta = self.c
 			else:
 				# delta proportional to generosity fraction minus expected generosity (self.X)
-				delta = g - self.X
+				delta = g - self.x
 		else:
 			g = game.genI[-1]
 			# delta proportional to generosity fraction minus expected generosity (self.X)

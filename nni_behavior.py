@@ -75,6 +75,9 @@ def main(args):
                     tau=args['tau'],
                     gamma=args['gamma'],
                     explore=args['explore'],
+                    decay=args['decay'],
+                    sigma=args['sigma'],
+                    thrA=args['thrA'],
                     nGames=nGames,
                     w_s=args['w_s'],
                     w_o=args['w_o'],
@@ -114,7 +117,7 @@ def main(args):
 
 if __name__ == '__main__':
     params = {
-        'architecture': 'DQN',
+        'architecture': 'IBL',
         'participantID': 'sree',
         'test': 'ks',
         'wGen': 0.5,
@@ -122,14 +125,7 @@ if __name__ == '__main__':
         'nAgents': 30,
         'nGames': 15,
         'nActions': 11,
-        'nEns': 300,
-        'nArr': 100,
-        'nStates': 100,
-        'nNeurons': 50,
         'seed': 0,
-        'tau': 3,
-        'alpha': 0.1,
-        'gamma': 0.9,
         'explore': 'exponential',
         'update': 'SARSA',
         'w_s': 1.0,
@@ -140,6 +136,19 @@ if __name__ == '__main__':
     params.update(optimized_params)
     main(params)
 
+# IBL
+# {
+#     "seed": {"_type":"randint","_value":[0, 1000]},
+#     "thrA": {"_type":"quniform","_value":[-2.0, 1.0, 0.01]},
+#     "decay": {"_type":"quniform","_value":[-1.0, 0.0, 0.01]},
+#     "sigma": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
+#     "tau": {"_type":"quniform","_value":[1.0, 10.0, 0.1]},
+#     "gamma": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
+#     "w_o": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
+#     "w_i": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
+# }
+
+# DQN
 # {
 #     "nNeurons": {"_type":"randint","_value":[20, 100]},
 #     "explore": {"_type":"choice","_value":["linear", "exponential"]},
@@ -151,6 +160,7 @@ if __name__ == '__main__':
 #     "w_i": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
 # }
 
+# NEF
 # {
 #     "nEns": {"_type":"randint","_value":[1000, 1000]},
 #     "nArr": {"_type":"randint","_value":[300, 300]},

@@ -1,7 +1,7 @@
 {
+    "thrA": {"_type":"quniform","_value":[-2.0, 1.0, 0.01]},
+    "decay": {"_type":"quniform","_value":[-1.0, 0.0, 0.01]},
+    "sigma": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
     "tau": {"_type":"quniform","_value":[1.0, 10.0, 0.1]},
-    "alpha": {"_type":"qloguniform","_value":[0.001, 1.0, 0.001]},
     "gamma": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
-    "w_o": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
-    "w_i": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
 }

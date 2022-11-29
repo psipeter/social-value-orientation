@@ -197,7 +197,7 @@ class DQN():
 class IBL():
 
 	def __init__(self, player, ID="IBL", seed=0, nActions=11,
-			decay=0.5, sigma=0.3, thrA=0,
+			decay=0.5, sigma=0.0, thrA=-2,
 			tau=1, gamma=0.9, explore='linear', update='SARSA',
 			nGames=100, w_s=1, w_o=0, w_i=0, representation="one-hot", normalize=False):
 		self.player = player
@@ -221,23 +221,22 @@ class IBL():
 		self.reinitialize(self.player)
 
 	class Chunk():
-		def __init__(self, turn, coins, episode, decay, sigma):
+		def __init__(self, turn, coins, action, episode, decay, sigma):
 			self.turn = turn
 			self.nextTurn = None
 			self.coins = coins
 			self.nextCoins = None
-			self.action = None
-			self.reward = None
+			self.action = action
 			self.value = None
-			self.triggers = [episode]
+			self.time = episode
 			self.decay = decay  # decay rate for activation
 			self.sigma = sigma  # gaussian noise added to activation
-
-		def get_activation(self, episode, rng):
-			A = 0
-			for t in self.triggers:
-				A += (episode - t)**(-self.decay)
-			return np.log(A) + rng.logistic(loc=0.0, scale=self.sigma)
+			self.activation = 0.0
+		def set_activation(self, episode, rng):
+			A = (episode - self.time)**(-self.decay)
+			self.activation = np.log(A) + rng.logistic(loc=0.0, scale=self.sigma)
+			# print(episode, self.time, A, self.activation)
+			return self.activation
 
 	def reinitialize(self, player):
 		self.player = player
@@ -259,8 +258,6 @@ class IBL():
 
 	def move(self, game):
 		turn, coins = get_state(self.player, game, "IBL")
-		# create a new empty chunk, populate with more information in learn()
-		self.learning_memory.append(self.Chunk(turn, coins, self.episode, self.decay, self.sigma))
 		# load chunks from declarative memory into working memory
 		self.populate_working_memory(turn, coins, game)
 		# select an action that immitates the best chunk in working memory
@@ -269,22 +266,17 @@ class IBL():
 		# translate action into environment-appropriate signal
 		available = game.coins if self.player=='investor' else game.giveI[-1]*game.match  # coins available
 		give, keep = action, available-action
+		# create a new empty chunk, populate with more information in learn()
+		self.learning_memory.append(self.Chunk(turn, coins, give, self.episode, self.decay, self.sigma))
 		return give, keep
 
 	def populate_working_memory(self, turn, coins, game):
 		self.working_memory.clear()
-		# yes = 0
-		# no = 0
 		for chunk in self.declarative_memory:
-			A = chunk.get_activation(self.episode, self.rng)
+			A = chunk.set_activation(self.episode, self.rng)
 			S = 1 if turn==chunk.turn and coins==chunk.coins else 0
-			# if A>self.thrA:
-			# 	yes += 1
-			# else:
-			# 	no += 1
 			if A > self.thrA and S > 0:
 				self.working_memory.append(chunk)
-		# print('yes', yes, 'no', no)
 
 	def select_action(self):
 		if len(self.working_memory)==0:
@@ -292,31 +284,27 @@ class IBL():
 			action = self.rng.randint(0, self.nActions)
 		else:
 			# choose an action based on the activation, similarity, reward, and/or value of chunks in working memory
-			mActions = {}
-			for a in np.arange(self.nActions):
-				mActions[a] = {'activations':[], 'values': [], 'blended': 0}
+			values = [[] for a in range(self.nActions)]
+			activations = [[] for a in range(self.nActions)]
+			blended = np.zeros((self.nActions))
 			for chunk in self.working_memory:
-				if chunk.action not in mActions:
-					mActions[chunk.action] = {'activations':[], 'rewards':[], 'values': [], 'blended': 0}
-				mActions[chunk.action]['activations'].append(chunk.get_activation(self.episode, self.rng))
-				mActions[chunk.action]['values'].append(chunk.value)
-			# compute the blended value for each potential action as the sum of values weighted by activation
-			for a in mActions.keys():
-				if len(mActions[a]['activations']) > 0:
-					mActions[a]['blended'] = np.average(mActions[a]['values'], weights=mActions[a]['activations'])
-			action = max(mActions, key=lambda action: mActions[action]['blended'])
+				values[chunk.action].append(chunk.value)
+				activations[chunk.action].append(chunk.activation)
+			for a in range(self.nActions):
+				if len(activations[a]) == 0:
+					blended[a] = 0
+				else:
+					blended[a] = np.average(values[a], weights=np.exp(activations[a]))
+			action = np.argmax(blended)
 		return action
 
 	def learn(self, game):
 		rewards = get_rewards(self.player, game, self.w_s, self.w_o, self.w_i, self.normalize, self.gamma)
-		actions = game.genI if self.player=='investor' else game.genT
 		# update value of new chunks using retrieval and blending
 		for t in np.arange(game.turns):
 			chunk = self.learning_memory[t]
-			chunk.action = actions[t]
-			chunk.reward = rewards[t]
 			if t==game.turns-1:
-				chunk.value = chunk.reward
+				chunk.value = rewards[t]
 				chunk.nextTurn = None
 				chunk.nextCoins = None
 			else:
@@ -327,40 +315,25 @@ class IBL():
 				# load into working memory all chunks whose state is similar to the 'next state' of the current chunk
 				self.working_memory.clear()
 				for rChunk in self.declarative_memory:
-					rA = rChunk.get_activation(self.episode, self.rng)
+					rA = rChunk.activation
 					rS = 1 if nextTurn==rChunk.turn and nextCoins==rChunk.coins else 0
 					if rA > self.thrA and rS > 0:
 						self.working_memory.append(rChunk)
 				# blend the value of all these chunks to estimate the value of the next state (Q(s',a'))
-				if len(self.working_memory)>0:
-					mAs = [mChunk.get_activation(self.episode, self.rng) for mChunk in self.working_memory]
-					mQs = [mChunk.value for mChunk in self.working_memory]
-					nextValue = np.average(mQs, weights=mAs)
-				else:
+				if len(self.working_memory)==0:
 					nextValue = 0
+				else:
+					mAs = [mChunk.activation for mChunk in self.working_memory]
+					mQs = [mChunk.value for mChunk in self.working_memory]
+					nextValue = np.average(mQs, weights=np.exp(mAs))
 				# set the value of the current chunk to be the sum of immediate reward and blended value
-				chunk.value = chunk.reward + self.gamma*nextValue
-
-		# Check if the new chunk has identical (state, action) to any previous chunk in declarative memory.
-		# If so, update that chunk's triggers, rather than adding a new chunk to declarative memory
-		# if not, add a new chunk to declaritive memory
+				chunk.value = rewards[t] + self.gamma*nextValue
+		# add the new chunks to declarative memory
 		for nChunk in self.learning_memory:
-			add_nChunk = True
-			for rChunk in self.declarative_memory:
-				identical = (nChunk.turn==rChunk.turn and
-						nChunk.nextTurn==rChunk.nextTurn and
-						nChunk.coins==rChunk.coins and
-						nChunk.nextCoins==rChunk.nextCoins and
-						nChunk.action == rChunk.action)
-				if identical:
-					rChunk.triggers.append(nChunk.triggers[0])
-					rChunk.reward = nChunk.reward
-					rChunk.value = nChunk.value
-					add_nChunk = False
-					break
-			if add_nChunk:
-				self.declarative_memory.append(nChunk)
+			self.declarative_memory.append(nChunk)
 		self.episode += 1
+
+
 
 class NEF():
 

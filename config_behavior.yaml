@@ -3,7 +3,7 @@ searchSpaceFile: search_space_behavior.json
 trialCommand: python nni_behavior.py
 trialCodeDirectory: .
 trialConcurrency: 8
-maxExperimentDuration: 48h
+maxExperimentDuration: 24h
 maxTrialNumber: 1000
 tuner:
   name: TPE
