@@ -20,3 +20,9 @@ RL models of social value orientation in the trust game using DQN, IBL, and NEF 
 	numpy = {version="*"}
 
  - pipenv install --index=pytorch torch
+
+nni commands:
+ - (edit search_space.json and config.yaml and nni.py)
+ - nnictl create -c config.yaml -p [port number]
+ - nnictl experiment list
+ - nnictl experiment export [experiment number] -t json -f filename
