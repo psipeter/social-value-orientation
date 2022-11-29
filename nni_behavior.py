@@ -44,18 +44,21 @@ def main(args):
     architecture = args['architecture']
     nAgents = args['nAgents']
     nGames = args['nGames']
+    seed = args['seed']
     pid = args['participantID']
     seed = args['seed']
+    player = args['player']
     opponent = pd.read_pickle("data/human_data_cleaned.pkl").query("ID==@pid")['opponent'].unique()[0]
+    nActions = 11 if player=='investor' else 31
 
     agents = []
     for n in range(nAgents):
         if architecture=='DQN':
             agents.append(
-                DQN('investor',
+                DQN(player=player,
                     ID=f"DQN{n}",
                     seed=seed if nAgents==1 else n,
-                    nActions=args['nActions'],
+                    nActions=nActions,
                     nNeurons=args['nNeurons'],
                     tau=args['tau'],
                     alpha=args['alpha'],
@@ -68,10 +71,10 @@ def main(args):
                     w_i=args['w_i']))
         elif architecture=='IBL':
             agents.append(
-                IBL('investor',
+                IBL(player=player,
                     ID=f"IBL{n}",
                     seed=seed if nAgents==1 else n,
-                    nActions=args['nActions'],
+                    nActions=nActions,
                     tau=args['tau'],
                     gamma=args['gamma'],
                     explore=args['explore'],
@@ -84,13 +87,13 @@ def main(args):
                     w_i=args['w_i']))
         elif architecture=='NEF':
             agents.append(
-                NEF('investor',
+                NEF(player=player,
                     ID=f"NEF{n}",
                     seed=seed if nAgents==1 else n,
                     nEns=args['nEns'],
                     nArr=args['nArr'],
                     nStates=args['nStates'],
-                    nActions=args['nActions'],
+                    nActions=nActions,
                     gamma=args['gamma'],
                     explore=args['explore'],
                     nGames=nGames,
@@ -98,33 +101,23 @@ def main(args):
                     w_o=args['w_o'],
                     w_i=args['w_i']))
 
-    agentIDs = [agent.ID for agent in agents]
-    dfs = []
-    for a, agent in enumerate(agents):
-        if opponent=='greedy':
-            t4ts = make_greedy_trustees(nGames, seed=seed+a)
-        elif opponent=='generous':
-            t4ts = make_generous_trustees(nGames, seed=seed+a)
-        for g in range(nGames):
-            df = play_game(agent, t4ts[g], gameID=g, train=True)
-            dfs.extend(df)
-        sim = pd.concat(dfs, ignore_index=True)
-        del(agent)
-    sim = pd.concat(dfs, ignore_index=True)
-    loss = getBehavioralSimilarity(sim, args)
+    IDs = [agent.ID for agent in agents]
+    data = run(agents, nGames=nGames, opponent=opponent, train=True).query("ID in @IDs")
+    loss = getBehavioralSimilarity(data, args)
     nni.report_final_result(loss)
     # print(loss)
+
 
 if __name__ == '__main__':
     params = {
         'architecture': 'IBL',
         'participantID': 'sree',
+        'player': 'investor',
         'test': 'ks',
         'wGen': 0.5,
         'wScore': 0.5,
         'nAgents': 30,
         'nGames': 15,
-        'nActions': 11,
         'seed': 0,
         'explore': 'exponential',
         'update': 'SARSA',
@@ -132,21 +125,14 @@ if __name__ == '__main__':
         'w_o': 0.0,
         'w_i': 0.0,
     }
+    params_fixed = {
+        # 'nNeurons': 100,
+    }
+    params = params | params_fixed
+
     optimized_params = nni.get_next_parameter()
     params.update(optimized_params)
     main(params)
-
-# IBL
-# {
-#     "seed": {"_type":"randint","_value":[0, 1000]},
-#     "thrA": {"_type":"quniform","_value":[-2.0, 1.0, 0.01]},
-#     "decay": {"_type":"quniform","_value":[-1.0, 0.0, 0.01]},
-#     "sigma": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
-#     "tau": {"_type":"quniform","_value":[1.0, 10.0, 0.1]},
-#     "gamma": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
-#     "w_o": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
-#     "w_i": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
-# }
 
 # DQN
 # {
@@ -156,6 +142,18 @@ if __name__ == '__main__':
 #     "alpha": {"_type":"qloguniform","_value":[0.001, 1.0, 0.001]},
 #     "gamma": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
 #     "update": {"_type":"choice","_value":["Q-learning", "SARSA"]},
+#     "w_o": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
+#     "w_i": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
+# }
+
+# IBL
+# {
+#     "seed": {"_type":"randint","_value":[0, 1000]},
+#     "thrA": {"_type":"quniform","_value":[-2.0, 1.0, 0.01]},
+#     "decay": {"_type":"quniform","_value":[-1.0, 0.0, 0.01]},
+#     "sigma": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
+#     "tau": {"_type":"quniform","_value":[1.0, 10.0, 0.1]},
+#     "gamma": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
 #     "w_o": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
 #     "w_i": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
 # }

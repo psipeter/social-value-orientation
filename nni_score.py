@@ -19,6 +19,7 @@ def main(args):
     seed = args['seed']
     opponent = args['opponent']
     finalGames = nGames - args['nTest']
+    nActions = 11 if player=='investor' else 31
 
     agents = []
     for n in range(nAgents):
@@ -27,7 +28,7 @@ def main(args):
                 DQN(player=player,
                     ID=f"DQN{n}",
                     seed=seed if nAgents==1 else n,
-                    nActions=args['nActions'],
+                    nActions=nActions,
                     nNeurons=args['nNeurons'],
                     tau=args['tau'],
                     alpha=args['alpha'],
@@ -43,7 +44,7 @@ def main(args):
                 IBL(player=player,
                     ID=f"IBL{n}",
                     seed=seed if nAgents==1 else n,
-                    nActions=args['nActions'],
+                    nActions=nActions,
                     tau=args['tau'],
                     gamma=args['gamma'],
                     explore=args['explore'],
@@ -62,7 +63,7 @@ def main(args):
                     nEns=args['nEns'],
                     nArr=args['nArr'],
                     nStates=args['nStates'],
-                    nActions=args['nActions'],
+                    nActions=nActions,
                     gamma=args['gamma'],
                     explore=args['explore'],
                     nGames=nGames,
@@ -78,15 +79,11 @@ def main(args):
 if __name__ == '__main__':
     params = {
         'architecture': 'IBL',
-        'opponent': 'greedy',
+        'opponent': 'generous',
         'player': 'investor',
-        'test': 'ks',
-        'wGen': 0.5,
-        'wScore': 0.5,
         'nAgents': 30,
         'nGames': 15,
         'nTest': 1,
-        'nActions': 11,
         'seed': 0,
         'explore': 'exponential',
         'update': 'SARSA',
