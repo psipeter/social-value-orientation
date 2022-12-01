@@ -63,11 +63,13 @@ def run(agents, nGames, opponent, verbose=False, train=True):
         elif player=='trustee' and opponent=='generous':
             t4ts = make_generous_investors(nGames, seed=a)
         for g in range(nGames):
-            if verbose: print(f"game {g}")
+            start = time.time()
             if player=='investor':
             	df = play_game(agent, t4ts[g], gameID=g, train=train)
             elif player=='trustee':
             	df = play_game(t4ts[g], agent, gameID=g, train=train)
+            end = time.time()
+            if verbose: print(f"game {g}, time {end-start:.3}")
             dfs.extend(df)
         del(agent)
     data = pd.concat(dfs, ignore_index=True)

@@ -5,7 +5,7 @@ import torch
 import nengo
 import scipy
 
-def get_state(player, game, agent, dim=0, vTurn=None, vCoin=None, eTurn=None, eCoin=None, representation="one-hot"):
+def get_state(player, game, agent, dim=0, ssp_space=None, representation="one-hot"):
 	t = len(game.giveI) if player=='investor' else len(game.giveT)
 	if agent=='TQ':
 		index = t if player=='investor' else t * (game.coins*game.match+1) + game.investor_give[-1]*game.match
@@ -24,14 +24,10 @@ def get_state(player, game, agent, dim=0, vTurn=None, vCoin=None, eTurn=None, eC
 	if agent=="NEF":
 		if representation=="SSP":
 			c = game.coins if player=='investor' else game.giveI[-1]*game.match
-			vector = encode_state(t, c, vTurn, vCoin, eTurn, eCoin) if t<5 else np.zeros((dim))
-			return vector
+			return ssp_space.encode(np.array([[t, c]]))[0]
 
 def generosity(player, give, keep):
 	return np.NaN if give+keep==0 and player=='trustee' else give/(give+keep)
-
-def encode_state(t, c, vTurn, vCoin, eTurn=1.0, eCoin=1.0):
-	return np.fft.ifft(vTurn**(t*eTurn) * vCoin**(c*eCoin)).real.squeeze()
 
 def make_unitary(v):
 	return v/np.absolute(v)
