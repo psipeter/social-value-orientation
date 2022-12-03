@@ -7,7 +7,6 @@ import nengo
 import itertools
 from utils import *
 from nengo.dists import Uniform, Choice, UniformHypersphere
-from sspspace import *
 
 class TQ():
 	# Tabular Q-learning agent
@@ -339,10 +338,10 @@ class IBL():
 class NEF():
 
 	def __init__(self, player, seed=0, nActions=11, ID="NEF",
-			alpha=1e-7, gamma=0.6, tau=1, explore='linear', nGames=100,
-			nNeuronsState=3000, nNeuronsError=3000, nNeuronsValue=300, nNeuronsChoice=300, nArrayState=200, nNeuronsMemory=300, nNeuronsIndex=300, 
-			nStates=100, sparsity=0.1, length_scale=0.5, radius=1, neuronType=nengo.LIFRate(), maxRates=Uniform(300, 400), normalize=False,
-			dt=1e-3, t1=2e-1, t2=2e-1, t3=2e-1, tR=2e-2,
+			alpha=1e-9, gamma=0.5, tau=4, explore='exponential', nGames=100, representation='onehot', update='SARSA',
+			nNeuronsState=100, nNeuronsError=10000, nNeuronsValue=1000, nNeuronsChoice=1000, nArrayState=300, nNeuronsMemory=300, nNeuronsIndex=300, 
+			nStates=6, sparsity=0.1, length_scale_turn=0.1, length_scale_coin=2.0, neuronType=nengo.LIFRate(), maxRates=Uniform(200, 400), normalize=False,
+			dt=1e-3, t1=1e-1, t2=1e-1, t3=1e-1, tR=3e-2,
 			w_s=1, w_o=0, w_i=0):
 		self.player = player
 		self.ID = ID
@@ -357,6 +356,7 @@ class NEF():
 		self.nArrayState = nArrayState
 		self.nNeuronsMemory = nNeuronsMemory
 		self.nNeuronsIndex = nNeuronsIndex
+		self.representation = representation
 		self.dt = dt
 		self.normalize = normalize
 		self.gamma = gamma
@@ -371,212 +371,38 @@ class NEF():
 		self.t2 = t2
 		self.t3 = t3
 		self.tR = tR
-		self.radius = radius
 		self.neuronType = neuronType
 		self.maxRates = maxRates
 		self.sparsity = sparsity
-		self.length_scale = length_scale
+		self.update = update
+		self.length_scale_turn = length_scale_turn
+		self.length_scale_coin = length_scale_coin
 		self.reinitialize(self.player)
 
 	def reinitialize(self, player):
 		self.player = player
-		self.ssp_space = HexagonalSSPSpace(domain_dim=2, ssp_dim=self.nStates, domain_bounds=None, length_scale=self.length_scale)
-		self.nStates = self.ssp_space.ssp_dim
-		self.intercepts = Choice([sparsity_to_x_intercept(self.nStates, self.sparsity)])
-		self.encoders = self.generateEncoders()
+		setEncodersIntercepts(self)
 		self.decoders = np.zeros((self.nNeuronsState, self.nActions))
-		self.env = self.Environment(self)
+		self.env = NEFEnvironment(self)
 		self.network = self.build_network()
 		self.simulator = nengo.Simulator(self.network, dt=self.dt, seed=self.seed, progress_bar=True)
 		self.episode = 0
-		self.previous_state = np.zeros((self.nStates))
+		self.true_current = np.zeros((self.nStates))
+		self.true_past = np.zeros((self.nStates))
+		self.decoded_current = np.zeros((self.nStates))
+		self.decoded_past = np.zeros((self.nStates))
+		self.decoded_memory = np.zeros((self.nStates))
 
 	def new_game(self, game):
 		if self.explore=='linear':
 			self.epsilon = 1 - self.episode / self.nGames
 		if self.explore=='exponential':
-			self.epsilon = np.exp(-self.tau*self.episode / self.nGames)
+			self.epsilon = np.exp(-self.tau * self.episode / self.nGames)
 		elif game.train==False:
 			self.epsilon = 0
 		self.env.__init__(self)
 		self.episode += 1
 		self.simulator.reset(self.seed)
-
-	def generateEncoders(self, load=False, save=True, iterations=100, thrSpikeDiff=30, thrSame=0.8):
-
-		if load:
-			encoders = np.load(f"data/NEF_encoders_player{self.player}_seed{self.seed}.npz")['encoders']
-			assert encoders.shape[0] == self.nNeuronsState
-			assert encoders.shape[1] == self.nStates
-		else:
-			class NodeInput():
-				def __init__(self, dim):
-					self.state = np.zeros((dim))
-				def set_state(self, state):
-					self.state = state
-				def get_state(self):
-					return self.state
-			sspInput = NodeInput(self.nStates)
-			encoders = self.ssp_space.sample_grid_encoders(self.nNeuronsState, seed=self.seed)
-			for i in range(iterations):
-				print(f'iteration {i}')
-				network = nengo.Network(seed=self.seed)
-				network.config[nengo.Ensemble].neuron_type = self.neuronType
-				network.config[nengo.Ensemble].max_rates = self.maxRates
-				network.config[nengo.Probe].synapse = None
-				with network:
-					sspNode = nengo.Node(lambda t, x: sspInput.get_state(), size_in=2, size_out=self.nStates)
-					ens = nengo.Ensemble(self.nNeuronsState, self.nStates, encoders=encoders, intercepts=self.intercepts)
-					nengo.Connection(sspNode, ens, synapse=None, seed=self.seed)
-					p_spikes = nengo.Probe(ens.neurons, synapse=None)
-					p_decode = nengo.Probe(ens, synapse=None)
-				sim = nengo.Simulator(network, progress_bar=False)
-
-				if self.player=='investor':
-					spikes = np.zeros((5, self.nNeuronsState))
-					similarities = np.zeros((5))
-					for turn in range(5):
-						sim.reset(self.seed)
-						ssp = self.ssp_space.encode(np.array([[turn, 10]]))[0]
-						sspInput.set_state(ssp)
-						sim.run(0.001, progress_bar=False)
-						spk = sim.data[p_spikes][-1]
-						spikes[turn] = spk
-						similarities[turn] = np.around(np.dot(ssp, sim.data[p_decode][-1]), 2)
-					print(f"similarities: {np.mean(similarities), np.min(similarities), np.max(similarities)}")
-					bad_neurons = []
-					for n in range(self.nNeuronsState):
-						same = 0
-						for pair in itertools.combinations(range(5), 2):
-							s_a = spikes[pair[0]][n]
-							s_b = spikes[pair[1]][n]
-							# print(n, pair[0], pair[1], s_a, s_b)
-							if np.abs(s_a-s_b)<thrSpikeDiff:
-								same += 1
-						if same>=thrSame*5:
-							bad_neurons.append(n)
-
-
-				elif self.player=='trustee':
-					spikes = np.zeros((5, 31, self.nNeuronsState))
-					similarities = np.zeros((5, 31, self.nNeuronsState))
-					for turn in range(5):
-						for coin in range(31):
-							sim.reset(self.seed)
-							ssp = self.ssp_space.encode(np.array([[turn, coin]]))[0]
-							sspInput.set_state(ssp)
-							sim.run(0.001, progress_bar=False)
-							spk = sim.data[p_spikes][-1]
-							spikes[turn, coin] = spk
-							similarities[turn, coin] = np.around(np.dot(ssp, sim.data[p_decode][-1]), 2)
-					print(f"similarities: {np.mean(similarities), np.min(similarities), np.max(similarities)}")
-					bad_neurons = []
-					for n in range(self.nNeuronsState):
-						print(n)
-						same = 0
-						tcList = itertools.product(range(5), range(31))
-						for pair in itertools.combinations(tcList, 2):
-							s_a = spikes[pair[0]][n]
-							s_b = spikes[pair[1]][n]
-							# print(n, pair[0], pair[1], s_a, s_b)
-							if np.abs(s_a-s_b)<thrSpikeDiff:
-								same += 1
-						if same>=thrSame*5*31:
-							bad_neurons.append(n)
-
-				print(f"number of bad neurons: {len(bad_neurons)} / {self.nNeuronsState}")
-				if len(bad_neurons)==0: break
-				new_encoders = self.ssp_space.sample_grid_encoders(self.nNeuronsState, seed=self.seed+i+1)
-				for n in bad_neurons:
-					encoders[n] = new_encoders[n]
-
-			if save:
-				np.savez(f"data/NEF_encoders_player{self.player}_seed{self.seed}.npz", encoders=encoders)
-		return encoders
-
-	class Environment():
-		def __init__(self, agent, update='SARSA', negativeN=False):
-			self.player = agent.player
-			self.state = np.zeros((agent.nStates))
-			self.nActions = agent.nActions
-			self.rng = agent.rng
-			self.update = update
-			self.negativeN = negativeN
-			self.t1 = agent.t1
-			self.t2 = agent.t2
-			self.t3 = agent.t3
-			self.tR = agent.tR
-			self.dt = agent.dt
-			self.gamma = agent.gamma
-			self.w_s = agent.w_s
-			self.w_o = agent.w_o
-			self.w_i = agent.w_i
-			self.normalize = agent.normalize
-			self.reward = 0
-			self.N = np.zeros((self.nActions))
-		def set_state(self, state):
-			self.state = state
-		def set_reward(self, game):
-			r_s = np.array(game.rI) if self.player=='investor' else np.array(game.rT)
-			r_o = np.array(game.rT) if self.player=='investor' else np.array(game.rI)
-			rewards = self.w_s*r_s + self.w_o*r_o - self.w_i*np.abs(r_s-r_o)
-			if self.normalize:
-				rewards = rewards / (game.coins * game.match)
-				if len(rewards)==0: self.reward = 0
-				elif len(rewards)<5: self.reward = (1-self.gamma)*rewards[-1]
-				elif len(rewards)==5: self.reward = rewards[-1]
-			else:
-				if len(rewards)==0: self.reward = 0
-				else: self.reward = rewards[-1] / (game.coins*game.match)
-		def set_explore(self, epsilon):
-			self.N = np.zeros((self.nActions))
-			if self.rng.uniform(0, 1) < epsilon:
-				idx = self.rng.randint(self.nActions)
-				if self.negativeN: self.N = -np.ones((self.nActions))
-				self.N[idx] = 1
-		def get_state(self):
-			return self.state
-		def get_reward(self):
-			return self.reward
-		def get_phase(self, t):
-			T = t % (self.t1 + self.t2 + self.t3)
-			if 0<=T<=self.t1: return 1
-			elif self.t1<T<=self.t1+self.t2: return 2
-			elif self.t1+self.t2<T<=self.t1+self.t2+self.t3: return 3
-			else: raise
-		def get_explore(self, t):
-			phase = self.get_phase(t)
-			if phase==1: return self.N if self.update=='SARSA' else 0*self.N
-			if phase==2: return 0*self.N  # don't explore in phase 2
-			if phase==3: return self.N  # explore in phase 3
-		def save_value(self, t):
-			phase = self.get_phase(t)
-			if phase==1: return 1  # save value Q(s',a') to WM_value in phase 1
-			if phase==2: return 0  # no update of WM_value in phase 2
-			if phase==3: return 0  # no update of WM_value in phase 3
-		def save_state(self, t):
-			phase = self.get_phase(t)
-			if phase==1: return 0  # no update of WM_state in phase 1
-			if phase==2: return 0  # no update of WM_state in phase 2
-			if phase==3: return 1  # save state s' to WM_state in phase 3
-		def save_choice(self, t):
-			phase = self.get_phase(t)
-			if phase==1: return 0  # no update of WM_choice in phase 1
-			if phase==2: return 0  # no update of WM_choice in phase 2
-			if phase==3: return 1  # save choice a' in stage 3
-		def do_replay(self, t):
-			phase = self.get_phase(t)
-			if phase==1: return 0  # no recall in phase 1
-			if phase==2: return 1  # recall state s in phase 2
-			if phase==3: return 0  # no recall in phase 3
-		def do_reset(self, t):
-			# reset WMs only for the first tR seconds of each phase
-			T = t % (self.t1 + self.t2 + self.t3)
-			if 0 <=T<self.tR: return 1
-			elif self.t1<T<self.t1+self.tR: return 1
-			elif self.t1+self.t2<T<self.t1+self.t2+self.tR: return 1
-			else: return 0
-
 
 	def build_network(self):
 		network = nengo.Network(seed=self.seed)
@@ -655,7 +481,7 @@ class NEF():
 						nengo.Connection(net.onehot.output, net.output_onehot, synapse=None)
 				return net
 
-			def Accumulator(nNeurons, dim, seed, thr=0.9, Tff=1e-1, Tfb=-1e-1):
+			def Accumulator(nNeurons, dim, seed, thr=0.9, Tff=2e-1, Tfb=-1e-1):
 				# WTA selection, each dimension of "input" accumulates in a seperate integrator (one dim of an ensemble array)
 				# at a rate "Tff" until one reaches a value "thr". That dimension then 'de-accumulates' each other dimension
 				# at a rate "Tfb" until they reach a value of zero
@@ -732,20 +558,24 @@ class NEF():
 			# Nodes, Ensembles, and Networks
 			state = nengo.Ensemble(self.nNeuronsState, self.nStates, encoders=self.encoders, intercepts=self.intercepts)
 			critic = LearningNode(self.nNeuronsState, self.nActions, self.decoders, self.alpha)  # connection between state and value as a node
-			value = nengo.networks.EnsembleArray(self.nNeuronsValue, self.nActions)
-			error = nengo.Ensemble(self.nNeuronsError, 1, radius=self.radius)
+			value = nengo.networks.EnsembleArray(self.nNeuronsValue, self.nActions, radius=1)
+			error = nengo.Ensemble(self.nNeuronsError, 1, radius=0.5)
 			choice = Accumulator(self.nNeuronsChoice, self.nActions, self.seed+1)
-			gate = Gate(self.nArrayState, self.nStates, self.seed+2, radius=self.radius)
-			WM_state = Memory(self.nArrayState, self.nStates, self.seed+3, radius=self.radius)
+			gate = Gate(self.nArrayState, self.nStates, self.seed+2, radius=1.0)
+			# WM_state = Memory(self.nArrayState, self.nStates, self.seed+3, radius=self.radius)
+			WM_state = Memory(self.nArrayState, self.nStates, self.seed+3, onehot_cleanup=True)
 			WM_choice = Memory(self.nNeuronsMemory, self.nActions, self.seed+4, onehot_cleanup=True)
-			WM_value = Memory(self.nNeuronsMemory, 1, self.seed+5)
+			# WM_value = Memory(self.nNeuronsMemory, 1, self.seed+5)
+			WM_value = Memory(10000, 1, self.seed+5, gain=0.5, synapse=0.01, radius=1)
 			compress = Compressor(self.nNeuronsIndex, self.nActions, self.seed+6)
-			expand = Expander(self.nNeuronsIndex, self.nActions, self.seed+7)
+			compress2 = Compressor(self.nNeuronsIndex, self.nActions, self.seed+7)
+			expand = Expander(self.nNeuronsIndex, self.nActions, self.seed+8)
 
 			# Connections
 			# phase 1-3: send the current state (stage 1 or 3) OR the recalled previous state (stage 2) to the state population
 			nengo.Connection(state_input, gate.a, synapse=None)
-			nengo.Connection(WM_state.output, gate.b, synapse=None)
+			# nengo.Connection(WM_state.output, gate.b, synapse=None)
+			nengo.Connection(WM_state.output_onehot, gate.b, synapse=None)
 			nengo.Connection(replay_switch, gate.gate_a, synapse=None)
 			nengo.Connection(replay_switch, gate.gate_b, function=lambda x: 1-x, synapse=None)
 			nengo.Connection(gate.output, state, synapse=None)
@@ -756,16 +586,18 @@ class NEF():
 			nengo.Connection(value.output, choice.input, synapse=None)
 			nengo.Connection(explore_input, choice.input, synapse=None)
 			nengo.Connection(reset_switch, choice.reset, synapse=None)
-			# phase 1-3: compute Q(s,a) or Q(s', a') by indexing
+			# phase 1: compute Q(s', a') by indexing and save to WM value
 			nengo.Connection(value.output, compress.values, synapse=None)
 			nengo.Connection(choice.output, compress.choice, synapse=None)
-			# phase 1: save Q(s',a')
 			nengo.Connection(compress.output, WM_value.state, synapse=None)
 			nengo.Connection(save_value_switch, WM_value.gate, function=lambda x: 1-x, synapse=None)
+			# phase 2: compute Q(s, a) by indexing
+			nengo.Connection(value.output, compress2.values, synapse=None)
+			nengo.Connection(WM_choice.output_onehot, compress2.choice, synapse=None)
 			# phase 2: compute deltaQ
 			nengo.Connection(WM_value.output, error, transform=self.gamma, synapse=None)  # gamma*Q(s',a')
 			nengo.Connection(reward_input, error, synapse=None)  # R(s,a)
-			nengo.Connection(compress.output, error, synapse=None, transform=-1)  # -Q(s,a)
+			nengo.Connection(compress2.output, error, synapse=None, transform=-1)  # -Q(s,a)
 			# phase 2: expand the scalar deltaQ to a one-hot vector indexed by a, then send this to critic
 			nengo.Connection(error, expand.value, synapse=None)
 			nengo.Connection(WM_choice.output_onehot, expand.choice, synapse=None)
@@ -780,11 +612,14 @@ class NEF():
 			nengo.Connection(save_choice_switch, WM_choice.gate, function=lambda x: 1-x, synapse=None)
 
 			# Probes
+			network.p_explore_input = nengo.Probe(explore_input)
 			network.p_replay_switch = nengo.Probe(replay_switch)
 			network.p_save_state_switch = nengo.Probe(save_state_switch)
 			network.p_save_value_switch = nengo.Probe(save_value_switch)
 			network.p_save_choice_switch = nengo.Probe(save_choice_switch)
+			network.p_gate = nengo.Probe(gate.output)
 			network.p_state = nengo.Probe(state)
+			network.p_state_spikes = nengo.Probe(state.neurons)
 			network.p_value = nengo.Probe(value.output)
 			network.p_error = nengo.Probe(error)
 			network.p_choice = nengo.Probe(choice.output)
@@ -800,52 +635,70 @@ class NEF():
 	def cleanPrint(self, probe, t, decimals=2):
 		rounded = np.around(self.simulator.data[probe], decimals)
 		past = np.mean(rounded[-int(t/self.dt):], axis=0)
+		# past = rounded[-int(t/self.dt):]
 		return past
 
 
 	def move(self, game):
-		game_state = get_state(self.player, game, "NEF", dim=self.nStates, representation="SSP", ssp_space=self.ssp_space)
+		game_state = get_state(self.player, game, "NEF", dim=self.nStates, representation=self.representation, ssp_space=self.ssp_space)
 		self.env.set_reward(game)
 		self.env.set_state(game_state)
 		self.env.set_explore(self.epsilon)
 		# print("reward", self.env.get_reward())
+		# print('state', game_state)
 		# print('N', self.env.N)
 		# print("Stage 1")
-		self.simulator.run(self.t1, progress_bar=False)  # store Q(s',a*)
-		print(f'current state overlap {np.dot(game_state, self.simulator.data[self.network.p_state][-1])}')
-		print('value', self.cleanPrint(self.network.p_value, self.dt))
-		# print('error', self.cleanPrint(self.network.p_error, self.t1))
-		# print('value', np.around(self.simulator.data[self.network.p_value], 2))
-		# print('choice', np.around(self.simulator.data[self.network.p_choice][-1], 2))
-		# print('compress', np.around(self.simulator.data[self.network.p_compress][-1], 2))		# print('reward', self.env.get_reward())
-		# print('WM choice', np.around(self.simulator.data[self.network.p_WM_choice][-1], 2))
-		# print('WM choice onehot', np.around(self.simulator.data[self.network.p_WM_choice_onehot][-1], 2))
-		print("Stage 2")
-		self.simulator.run(self.t2, progress_bar=False)  # replay Q(s,a), recall Q(s',a') from value memory, and learn
-		print(f'past state overlap {np.dot(self.previous_state, self.simulator.data[self.network.p_state][-1])}')
+		self.simulator.run(self.t1, progress_bar=False)
+		self.true_current = game_state
+		self.decoded_current = self.simulator.data[self.network.p_state][-1]
+		print('value', self.cleanPrint(self.network.p_value, 10*self.dt))
+		# print('explore', self.cleanPrint(self.network.p_explore_input, 10*self.dt))
+		# print('choice', self.cleanPrint(self.network.p_choice, 10*self.dt))
+		# print('WM value', self.cleanPrint(self.network.p_WM_value, 10*self.dt))
+		# print('WM state', self.cleanPrint(self.network.p_WM_state, self.t1))
+		# print('gate', self.cleanPrint(self.network.p_gate, self.t1))
+		# print('state spikes', self.cleanPrint(self.network.p_state_spikes, self.t1))
+		# print(f'true current with true past: {np.dot(self.true_current, self.true_past):.3}')
+		# print(f'true current with decoded current: {np.dot(self.true_current, self.decoded_current):.3}')
+		# print('error', self.cleanPrint(self.network.p_error, self.t1).reshape(-1))
+		# print("Stage 2")
+		self.simulator.run(self.t2, progress_bar=False)
+		self.decoded_memory = self.simulator.data[self.network.p_state][-1]
+		# print('WM state', self.cleanPrint(self.network.p_WM_state, self.t1))
+		# print('gate', self.cleanPrint(self.network.p_gate, self.t2))
+		# print('state spikes', self.cleanPrint(self.network.p_state_spikes, self.t2))
+		# print('value', self.cleanPrint(self.network.p_value, self.dt))
+		# print(f'true past with decoded memory: {np.dot(self.true_past, self.decoded_memory):.3}')
+		# print(f'decoded memory with decoded past: {np.dot(self.decoded_memory, self.decoded_past):.3}')
+		# print(f'decoded memory with decoded current: {np.dot(self.decoded_memory, self.decoded_current):.3}')
+		# print(f'past state overlap {np.dot(self.previous_state, self.simulator.data[self.network.p_state][-1])}')
 		# print('value', self.cleanPrint(self.network.p_value, self.t2))
-		# print('error', self.cleanPrint(self.network.p_error, self.t2))
 		# print('expand', self.cleanPrint(self.network.p_expand, self.t1))
-		# print('expand', np.around(self.simulator.data[self.network.p_expand][-3:], 2))
-		# print('choice', np.around(self.simulator.data[self.network.p_choice][-1], 2))
-		# print('compress', np.around(self.simulator.data[self.network.p_compress][-1], 2))
-		# print('WM choice', np.around(self.simulator.data[self.network.p_WM_choice][-1], 2))
-		# print('WM choice onehot', np.around(self.simulator.data[self.network.p_WM_choice_onehot][-1], 2))
-		# print('WM value', self.cleanPrint(self.network.p_WM_value, self.t2))
+		# print('WM value', self.cleanPrint(self.network.p_WM_value, 10*self.dt))
+		# print('WM choice', self.cleanPrint(self.network.p_WM_choice_onehot, 10*self.dt))
+		# print('error', self.cleanPrint(self.network.p_error, self.dt).reshape(-1))
 		# print('compress', self.cleanPrint(self.network.p_compress, self.t2))
 		# print("Stage 3")
-		self.simulator.run(self.t3, progress_bar=False)  # choose a'
-		# print('error', self.cleanPrint(self.network.p_error, self.t3))
-		# print('WM choice', np.around(self.simulator.data[self.network.p_WM_choice][-1], 2))
-		# print('WM choice onehot', np.around(self.simulator.data[self.network.p_WM_choice_onehot][-1], 2))
-		# print('value', np.around(self.simulator.data[self.network.p_value][-2], 2))
-		# print('choice', np.around(self.simulator.data[self.network.p_choice][-1], 2))
-		# print('compress', np.around(self.simulator.data[self.network.p_compress][-1], 2))
-		# print('error', np.around(self.simulator.data[self.network.p_error][-2], 2))
-		# print('expand', np.around(self.simulator.data[self.network.p_expand][-2], 2))
-		choice = self.simulator.data[self.network.p_choice][-1]
+		self.simulator.run(self.t3, progress_bar=False)
+		# print('WM value', self.cleanPrint(self.network.p_WM_value, self.t3))
+		# print('WM state', self.cleanPrint(self.network.p_WM_state, self.t1))
+		# print('gate', self.cleanPrint(self.network.p_gate, self.t3))
+		# print('state spikes', self.cleanPrint(self.network.p_state_spikes, self.t3))
+		# print('value', self.cleanPrint(self.network.p_value, self.t3))
+		# print('explore', self.cleanPrint(self.network.p_explore_input, 10*self.dt))
+		# print('error', self.cleanPrint(self.network.p_error, self.t3).reshape(-1))
+		# print('value', self.cleanPrint(self.network.p_value, 10*self.dt))
+		# print('choice', self.cleanPrint(self.network.p_choice, 10*self.dt))
+		# print('WM value', self.cleanPrint(self.network.p_WM_value, self.t2))
+		choice = np.mean(self.simulator.data[self.network.p_choice][-10:], axis=0)
+		# print('choice2', choice)
+		# choice = self.simulator.data[self.network.p_choice][-1]
+		# if np.sum(choice) < 0.1: action = self.rng.randint(self.nActions)
+		# else: action = np.argmax(choice)
 		action = np.argmax(choice)
-		self.previous_state = game_state
+		self.true_past = game_state
+		self.decoded_past = np.array(self.decoded_current)
+
 		# print('action', action, "explore", None if np.sum(self.env.N)==0 else np.argmax(self.env.N))
 		# print('action', action)
 		# translate action into environment-appropriate signal
