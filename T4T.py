@@ -85,3 +85,21 @@ def make_generous_trustees(games, seed=0):
 	ps = rng.uniform(1.0, 1.0, size=games)
 	T4Ts = [T4T("trustee", o=os[g], x=xs[g], f=fs[g], p=ps[g], ID=f"T4T{g}") for g in range(games)]
 	return T4Ts
+
+def make_test_investors(games, seed=0):
+	rng = np.random.RandomState(seed=seed)
+	os = rng.uniform(1.0, 1.0, size=games)
+	xs = rng.uniform(0.5, 0.5, size=games)
+	fs = rng.uniform(0.0, 0.0, size=games)
+	ps = rng.uniform(0.0, 0.0, size=games)
+	T4Ts = [T4T("investor", o=os[g], x=xs[g], f=fs[g], p=ps[g], ID=f"T4T{g}") for g in range(games)]
+	return T4Ts
+
+def make_test_trustees(games, seed=0):
+	rng = np.random.RandomState(seed=seed)
+	os = rng.uniform(1.0, 1.0, size=games)
+	xs = rng.uniform(0.5, 0.5, size=games)
+	fs = rng.uniform(0.0, 0.0, size=games)
+	ps = rng.uniform(0.0, 0.0, size=games)
+	T4Ts = [T4T("trustee", o=os[g], x=xs[g], f=fs[g], p=ps[g], ID=f"T4T{g}") for g in range(games)]
+	return T4Ts

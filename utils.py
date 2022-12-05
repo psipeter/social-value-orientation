@@ -107,14 +107,11 @@ class NEFEnvironment():
 			elif len(rewards)==5: self.reward = rewards[-1]
 		else:
 			if len(rewards)==0: self.reward = 0
-			else:
-				if self.player=='investor': self.reward = rewards[-1] / (game.coins*game.match/2)
-				if self.player=='trustee': self.reward = rewards[-1] / (game.coins*game.match)
+			else: self.reward = rewards[-1]
 	def set_explore(self, epsilon, k=2):
 		self.N = np.zeros((self.nActions))
 		if self.rng.uniform(0, 1) < epsilon:
 			idx = self.rng.randint(self.nActions)
-			print(idx)
 			if self.negativeN: self.N = -k*np.ones((self.nActions))
 			self.N[idx] = k
 	def get_state(self):
@@ -184,11 +181,11 @@ def printSimilarities(agent):
 def setEncodersIntercepts(agent, load=False, save=True, iterations=0, thrSpikeDiff=30, thrSame=0.8):
 
 	if agent.representation=='onehot':
-		agent.intercepts = Uniform(0.1, 1)
-		# agent.encoders = np.eye((agent.nNeuronsState))
-		agent.encoders = np.zeros((agent.nNeuronsState, agent.nStates))
-		idxs = agent.rng.randint(0, agent.nStates, size=agent.nNeuronsState)
-		agent.encoders[range(agent.nNeuronsState), idxs] = 1
+		agent.intercepts = Uniform(0.1, 0.1)
+		agent.encoders = np.eye((agent.nNeuronsState))
+		# agent.encoders = np.zeros((agent.nNeuronsState, agent.nStates))
+		# idxs = agent.rng.randint(0, agent.nStates, size=agent.nNeuronsState)
+		# agent.encoders[range(agent.nNeuronsState), idxs] = 1
 		agent.ssp_space = None
 
 	elif agent.representation=='ssp':

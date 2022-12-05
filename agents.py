@@ -338,9 +338,9 @@ class IBL():
 class NEF():
 
 	def __init__(self, player, seed=0, nActions=11, ID="NEF",
-			alpha=1e-9, gamma=0.5, tau=4, explore='exponential', nGames=100, representation='onehot', update='SARSA',
-			nNeuronsState=100, nNeuronsError=10000, nNeuronsValue=1000, nNeuronsChoice=1000, nArrayState=300, nNeuronsMemory=300, nNeuronsIndex=300, 
-			nStates=6, sparsity=0.1, length_scale_turn=0.1, length_scale_coin=2.0, neuronType=nengo.LIFRate(), maxRates=Uniform(200, 400), normalize=False,
+			alpha=1e-9, gamma=0.5, tau=4, explore='linear', nGames=100, representation='onehot', update='SARSA',
+			nNeuronsState=6, nNeuronsError=10000, nNeuronsValue=1000, nNeuronsChoice=1000, nArrayState=300, nNeuronsMemory=300, nNeuronsIndex=300, 
+			nStates=6, sparsity=0.1, length_scale_turn=0.1, length_scale_coin=2.0, neuronType=nengo.LIFRate(), maxRates=Uniform(400, 400), normalize=True,
 			dt=1e-3, t1=1e-1, t2=1e-1, t3=1e-1, tR=3e-2,
 			w_s=1, w_o=0, w_i=0):
 		self.player = player
@@ -633,10 +633,7 @@ class NEF():
 		return network
 
 	def cleanPrint(self, probe, t, decimals=2):
-		rounded = np.around(self.simulator.data[probe], decimals)
-		past = np.mean(rounded[-int(t/self.dt):], axis=0)
-		# past = rounded[-int(t/self.dt):]
-		return past
+		return np.around(np.mean(self.simulator.data[probe][-int(t/self.dt):], axis=0), decimals)
 
 
 	def move(self, game):
@@ -651,7 +648,7 @@ class NEF():
 		self.simulator.run(self.t1, progress_bar=False)
 		self.true_current = game_state
 		self.decoded_current = self.simulator.data[self.network.p_state][-1]
-		print('value', self.cleanPrint(self.network.p_value, 10*self.dt))
+		print('value', self.cleanPrint(self.network.p_value, self.t1))
 		# print('explore', self.cleanPrint(self.network.p_explore_input, 10*self.dt))
 		# print('choice', self.cleanPrint(self.network.p_choice, 10*self.dt))
 		# print('WM value', self.cleanPrint(self.network.p_WM_value, 10*self.dt))

@@ -58,10 +58,14 @@ def run(agents, nGames, opponent, verbose=False, train=True):
             t4ts = make_greedy_trustees(nGames, seed=a)
         elif player=='investor' and opponent=='generous':
             t4ts = make_generous_trustees(nGames, seed=a)
+        elif player=='investor' and opponent=='test':
+            t4ts = make_test_trustees(nGames, seed=a)
         elif player=='trustee' and opponent=='greedy':
             t4ts = make_greedy_investors(nGames, seed=a)
         elif player=='trustee' and opponent=='generous':
             t4ts = make_generous_investors(nGames, seed=a)
+        elif player=='trustee' and opponent=='test':
+            t4ts = make_test_investors(nGames, seed=a)
         for g in range(nGames):
             start = time.time()
             if player=='investor':
