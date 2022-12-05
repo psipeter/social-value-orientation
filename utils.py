@@ -30,7 +30,8 @@ def get_state(player, game, agent, dim=0, ssp_space=None, representation="one-ho
 		elif representation=="onehot":
 			index = t if player=='investor' else t * (game.coins*game.match+1) + game.giveI[-1]*game.match
 			vector = np.zeros((dim))
-			vector[index] = 1
+			if t < 5:
+				vector[index] = 1
 			return vector
 def generosity(player, give, keep):
 	return np.NaN if give+keep==0 and player=='trustee' else give/(give+keep)
@@ -181,11 +182,12 @@ def printSimilarities(agent):
 def setEncodersIntercepts(agent, load=False, save=True, iterations=0, thrSpikeDiff=30, thrSame=0.8):
 
 	if agent.representation=='onehot':
-		agent.intercepts = Uniform(0.1, 0.1)
-		agent.encoders = np.eye((agent.nNeuronsState))
-		# agent.encoders = np.zeros((agent.nNeuronsState, agent.nStates))
-		# idxs = agent.rng.randint(0, agent.nStates, size=agent.nNeuronsState)
-		# agent.encoders[range(agent.nNeuronsState), idxs] = 1
+		# agent.intercepts = Uniform(0.1, 0.1)
+		# agent.encoders = np.eye((agent.nNeuronsState))
+		agent.intercepts = Uniform(0.1, 1.0)
+		agent.encoders = np.zeros((agent.nNeuronsState, agent.nStates))
+		idxs = agent.rng.randint(0, agent.nStates, size=agent.nNeuronsState)
+		agent.encoders[range(agent.nNeuronsState), idxs] = 1
 		agent.ssp_space = None
 
 	elif agent.representation=='ssp':
