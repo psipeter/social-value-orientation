@@ -409,6 +409,7 @@ class NEF():
 		network.config[nengo.Ensemble].neuron_type = self.neuronType
 		network.config[nengo.Ensemble].max_rates = self.maxRates
 		network.config[nengo.Probe].synapse = None
+		wInh = -1e1*np.ones((self.nNeuronsError, 1))
 		with network:
 
 			# Network Definitions
@@ -534,6 +535,7 @@ class NEF():
 					net.value = nengo.Node(size_in=1)
 					net.choice = nengo.Node(size_in=dim)
 					net.output = nengo.Node(size_in=dim)
+					net.replay = nengo.Node(size_in=1)
 					net.bias = nengo.Node(np.ones((dim)))
 					net.ens = nengo.networks.EnsembleArray(nNeurons, dim)
 					net.inh = nengo.networks.EnsembleArray(nNeurons, dim, intercepts=Uniform(0.1,1), encoders=Choice([[1]]))
@@ -542,6 +544,7 @@ class NEF():
 					nengo.Connection(net.bias, net.inh.input, synapse=None)
 					nengo.Connection(net.ens.output, net.output, synapse=None)
 					for a in range(dim):
+						nengo.Connection(net.replay, net.ens.ea_ensembles[a].neurons, transform=wInh, synapse=None)
 						nengo.Connection(net.inh.output[a], net.ens.ea_ensembles[a].neurons, transform=wInh, synapse=None)
 				return net
 
@@ -603,8 +606,8 @@ class NEF():
 			nengo.Connection(WM_choice.output_onehot, expand.choice, synapse=None)
 			nengo.Connection(expand.output, critic[self.nNeuronsState: self.nNeuronsState+self.nActions], synapse=None)  # [0, ..., deltaQ(s,a), ..., 0]
 			# phase 2: disinhibit learning
-			wInh = -1e2*np.ones((self.nNeuronsError, 1))
-			nengo.Connection(replay_switch, error.neurons, function=lambda x: 1-x, transform=wInh, synapse=None)	
+			nengo.Connection(replay_switch, error.neurons, function=lambda x: 1-x, transform=wInh, synapse=None)
+			nengo.Connection(replay_switch, expand.replay, function=lambda x: 1-x, synapse=None)
 			# phase 3: save s' and a' to WM, overwriting previous s and a
 			nengo.Connection(state_input, WM_state.state, synapse=None)
 			nengo.Connection(save_state_switch, WM_state.gate, function=lambda x: 1-x, synapse=None)
@@ -618,7 +621,7 @@ class NEF():
 			network.p_save_value_switch = nengo.Probe(save_value_switch)
 			network.p_save_choice_switch = nengo.Probe(save_choice_switch)
 			network.p_gate = nengo.Probe(gate.output)
-			network.p_state = nengo.Probe(state)
+			# network.p_state = nengo.Probe(state)
 			network.p_state_spikes = nengo.Probe(state.neurons)
 			network.p_value = nengo.Probe(value.output)
 			network.p_error = nengo.Probe(error)
@@ -632,7 +635,7 @@ class NEF():
 
 		return network
 
-	def cleanPrint(self, probe, t, decimals=2):
+	def cleanPrint(self, probe, t, decimals=3):
 		return np.around(np.mean(self.simulator.data[probe][-int(t/self.dt):], axis=0), decimals)
 
 
@@ -646,8 +649,8 @@ class NEF():
 		# print('N', self.env.N)
 		# print("Stage 1")
 		self.simulator.run(self.t1, progress_bar=False)
-		self.true_current = game_state
-		self.decoded_current = self.simulator.data[self.network.p_state][-1]
+		# self.true_current = game_state
+		# self.decoded_current = self.simulator.data[self.network.p_state][-1]
 		print('value', self.cleanPrint(self.network.p_value, self.t1))
 		# print('explore', self.cleanPrint(self.network.p_explore_input, 10*self.dt))
 		# print('choice', self.cleanPrint(self.network.p_choice, 10*self.dt))
@@ -655,12 +658,18 @@ class NEF():
 		# print('WM state', self.cleanPrint(self.network.p_WM_state, self.t1))
 		# print('gate', self.cleanPrint(self.network.p_gate, self.t1))
 		# print('state spikes', self.cleanPrint(self.network.p_state_spikes, self.t1))
+		# print('state spikes', np.sum(self.cleanPrint(self.network.p_state_spikes, self.t1)))
 		# print(f'true current with true past: {np.dot(self.true_current, self.true_past):.3}')
 		# print(f'true current with decoded current: {np.dot(self.true_current, self.decoded_current):.3}')
 		# print('error', self.cleanPrint(self.network.p_error, self.t1).reshape(-1))
+		# print('replay', self.cleanPrint(self.network.p_replay_switch, self.t1))
+		# print('total error', np.around(np.sum(self.simulator.data[self.network.p_error]), 3))
+		# print('total expand', np.around(np.sum(self.simulator.data[self.network.p_expand]), 3))
+		# print('error', self.cleanPrint(self.network.p_error, self.t1))
+		# print('expand', self.cleanPrint(self.network.p_expand, self.t1))
 		# print("Stage 2")
 		self.simulator.run(self.t2, progress_bar=False)
-		self.decoded_memory = self.simulator.data[self.network.p_state][-1]
+		# self.decoded_memory = self.simulator.data[self.network.p_state][-1]
 		# print('WM state', self.cleanPrint(self.network.p_WM_state, self.t1))
 		# print('gate', self.cleanPrint(self.network.p_gate, self.t2))
 		# print('state spikes', self.cleanPrint(self.network.p_state_spikes, self.t2))
@@ -670,10 +679,13 @@ class NEF():
 		# print(f'decoded memory with decoded current: {np.dot(self.decoded_memory, self.decoded_current):.3}')
 		# print(f'past state overlap {np.dot(self.previous_state, self.simulator.data[self.network.p_state][-1])}')
 		# print('value', self.cleanPrint(self.network.p_value, self.t2))
-		# print('expand', self.cleanPrint(self.network.p_expand, self.t1))
 		# print('WM value', self.cleanPrint(self.network.p_WM_value, 10*self.dt))
 		# print('WM choice', self.cleanPrint(self.network.p_WM_choice_onehot, 10*self.dt))
-		# print('error', self.cleanPrint(self.network.p_error, self.dt).reshape(-1))
+		# print('error', self.cleanPrint(self.network.p_error, self.t2))
+		# print('expand', self.cleanPrint(self.network.p_expand, self.t2))
+		# print('replay', self.cleanPrint(self.network.p_replay_switch, self.t2))
+		# print('total error', np.around(np.sum(self.simulator.data[self.network.p_error]), 3))
+		# print('total expand', np.around(np.sum(self.simulator.data[self.network.p_expand]), 3))
 		# print('compress', self.cleanPrint(self.network.p_compress, self.t2))
 		# print("Stage 3")
 		self.simulator.run(self.t3, progress_bar=False)
@@ -687,14 +699,19 @@ class NEF():
 		# print('value', self.cleanPrint(self.network.p_value, 10*self.dt))
 		# print('choice', self.cleanPrint(self.network.p_choice, 10*self.dt))
 		# print('WM value', self.cleanPrint(self.network.p_WM_value, self.t2))
+		# print('replay', self.cleanPrint(self.network.p_replay_switch, self.t3))
+		# print('error', self.cleanPrint(self.network.p_error, self.t3))
+		# print('expand', self.cleanPrint(self.network.p_expand, self.t3))
+		# print('total error', np.around(np.sum(self.simulator.data[self.network.p_error]), 3))
+		# print('total expand', np.around(np.sum(self.simulator.data[self.network.p_expand]), 3))
 		choice = np.mean(self.simulator.data[self.network.p_choice][-10:], axis=0)
 		# print('choice2', choice)
 		# choice = self.simulator.data[self.network.p_choice][-1]
 		# if np.sum(choice) < 0.1: action = self.rng.randint(self.nActions)
 		# else: action = np.argmax(choice)
 		action = np.argmax(choice)
-		self.true_past = game_state
-		self.decoded_past = np.array(self.decoded_current)
+		# self.true_past = game_state
+		# self.decoded_past = np.array(self.decoded_current)
 
 		# print('action', action, "explore", None if np.sum(self.env.N)==0 else np.argmax(self.env.N))
 		# print('action', action)
