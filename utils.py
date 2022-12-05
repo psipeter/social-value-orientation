@@ -186,11 +186,11 @@ def setEncodersIntercepts(agent, load=False, save=True, iterations=0, thrSpikeDi
 		agent.intercepts = Uniform(0.1, 1.0)
 		# agent.encoders = np.eye((agent.nNeuronsState))
 		agent.encoders = np.zeros((agent.nNeuronsState, agent.nStates))
-		# for n in range(agent.nNeuronsState):
-		# 	idx = n % agent.nStates
-		# 	agent.encoders[n][idx] = 1
-		idxs = agent.rng.randint(0, agent.nStates, size=agent.nNeuronsState)
-		agent.encoders[range(agent.nNeuronsState), idxs] = 1
+		for n in range(agent.nNeuronsState):
+			idx = n % agent.nStates
+			agent.encoders[n][idx] = 1
+		# idxs = agent.rng.randint(0, agent.nStates, size=agent.nNeuronsState)
+		# agent.encoders[range(agent.nNeuronsState), idxs] = 1
 		# for n in range(agent.nNeuronsState):
 		# 	print('neuron', n, np.sum(agent.encoders[n]))
 		# for n in range(agent.nStates):

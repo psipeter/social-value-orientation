@@ -562,14 +562,14 @@ class NEF():
 			state = nengo.Ensemble(self.nNeuronsState, self.nStates, encoders=self.encoders, intercepts=self.intercepts)
 			critic = LearningNode(self.nNeuronsState, self.nActions, self.decoders, self.alpha)  # connection between state and value as a node
 			value = nengo.networks.EnsembleArray(self.nNeuronsValue, self.nActions, radius=1)
-			error = nengo.Ensemble(self.nNeuronsError, 1, radius=0.5)
+			error = nengo.Ensemble(self.nNeuronsError, 1, radius=1.0)
 			choice = Accumulator(self.nNeuronsChoice, self.nActions, self.seed+1)
 			gate = Gate(self.nArrayState, self.nStates, self.seed+2, radius=1.0)
 			# WM_state = Memory(self.nArrayState, self.nStates, self.seed+3, radius=self.radius)
 			WM_state = Memory(self.nArrayState, self.nStates, self.seed+3, onehot_cleanup=True)
 			WM_choice = Memory(self.nNeuronsMemory, self.nActions, self.seed+4, onehot_cleanup=True)
 			# WM_value = Memory(self.nNeuronsMemory, 1, self.seed+5)
-			WM_value = Memory(10000, 1, self.seed+5, gain=0.5, synapse=0.01, radius=1)
+			WM_value = Memory(self.nNeuronsValue, 1, self.seed+5, gain=0.5, synapse=0.01, radius=1)
 			compress = Compressor(self.nNeuronsIndex, self.nActions, self.seed+6)
 			compress2 = Compressor(self.nNeuronsIndex, self.nActions, self.seed+7)
 			expand = Expander(self.nNeuronsIndex, self.nActions, self.seed+8)
@@ -600,7 +600,7 @@ class NEF():
 			# phase 2: compute deltaQ
 			nengo.Connection(WM_value.output, error, transform=self.gamma, synapse=None)  # gamma*Q(s',a')
 			nengo.Connection(reward_input, error, synapse=None)  # R(s,a)
-			nengo.Connection(compress2.output, error, synapse=None, transform=-1)  # -Q(s,a)
+			nengo.Connection(compress2.output, error, transform=-1, synapse=None)  # -Q(s,a)
 			# phase 2: expand the scalar deltaQ to a one-hot vector indexed by a, then send this to critic
 			nengo.Connection(error, expand.value, synapse=None)
 			nengo.Connection(WM_choice.output_onehot, expand.choice, synapse=None)
@@ -615,6 +615,7 @@ class NEF():
 			nengo.Connection(save_choice_switch, WM_choice.gate, function=lambda x: 1-x, synapse=None)
 
 			# Probes
+			network.p_reward_input = nengo.Probe(reward_input)
 			network.p_explore_input = nengo.Probe(explore_input)
 			network.p_replay_switch = nengo.Probe(replay_switch)
 			network.p_save_state_switch = nengo.Probe(save_state_switch)
@@ -631,6 +632,7 @@ class NEF():
 			network.p_WM_value = nengo.Probe(WM_value.output)
 			network.p_WM_state = nengo.Probe(WM_state.output)
 			network.p_compress = nengo.Probe(compress.output)
+			network.p_compress2 = nengo.Probe(compress2.output)
 			network.p_expand = nengo.Probe(expand.output)
 
 		return network
@@ -678,11 +680,13 @@ class NEF():
 		# print(f'decoded memory with decoded past: {np.dot(self.decoded_memory, self.decoded_past):.3}')
 		# print(f'decoded memory with decoded current: {np.dot(self.decoded_memory, self.decoded_current):.3}')
 		# print(f'past state overlap {np.dot(self.previous_state, self.simulator.data[self.network.p_state][-1])}')
+		# print('reward input', self.cleanPrint(self.network.p_reward_input, self.dt))
+		# print('gamma * WM value', self.gamma*self.cleanPrint(self.network.p_WM_value, self.dt))
 		# print('value', self.cleanPrint(self.network.p_value, self.t2))
-		# print('WM value', self.cleanPrint(self.network.p_WM_value, 10*self.dt))
-		# print('WM choice', self.cleanPrint(self.network.p_WM_choice_onehot, 10*self.dt))
-		# print('error', self.cleanPrint(self.network.p_error, self.t2))
-		# print('expand', self.cleanPrint(self.network.p_expand, self.t2))
+		# print('WM choice', self.cleanPrint(self.network.p_WM_choice_onehot, self.dt))
+		# print('compress2', self.cleanPrint(self.network.p_compress2, self.dt))
+		# print('error', self.cleanPrint(self.network.p_error, self.dt))
+		# print('expand', self.cleanPrint(self.network.p_expand, self.dt))
 		# print('replay', self.cleanPrint(self.network.p_replay_switch, self.t2))
 		# print('total error', np.around(np.sum(self.simulator.data[self.network.p_error]), 3))
 		# print('total expand', np.around(np.sum(self.simulator.data[self.network.p_expand]), 3))

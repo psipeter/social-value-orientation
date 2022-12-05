@@ -13,13 +13,13 @@ nAgents = 1
 player = 'investor'
 nActions = 11 if player=='investor' else 31
 player2 = 'trustee' if player=='investor' else 'investor'
-opponent = 'greedy'
+opponent = 'generous'
 w_o = 0.0
 w_i = 0.0
 # agents = [DQN(player=player, nActions=nActions, nGames=nGames, explore='linear', w_o=w_o, w_i=w_i)]
 # agents = [IBL(player=player, nActions=nActions, nGames=nGames, explore='linear', w_o=w_o, w_i=w_i, decay=0.5, sigma=0.1, thrA=-1.5, seed=1)]
-agents = [NEF(player=player, nActions=nActions, nGames=nGames, seed=n, ID="NEF"+str(n), update="Q-learning",
-	nNeuronsState=10000, nStates=155, alpha=1e-7) for n in range(nAgents)]
+agents = [NEF(player=player, nActions=nActions, nGames=nGames, seed=n+1, ID="NEF"+str(n+1), update="Q-learning",
+	nNeuronsState=10000, nStates=155, alpha=1e-8) for n in range(nAgents)]
 IDs = [agent.ID for agent in agents]
 
 data = run(agents, nGames=nGames, opponent=opponent, train=True, verbose=True).query("ID in @IDs")
