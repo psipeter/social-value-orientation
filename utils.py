@@ -6,6 +6,7 @@ import nengo
 import scipy
 from nengo.dists import Uniform, Choice, UniformHypersphere
 from sspspace import *
+import itertools
 
 def get_state(player, game, agent, dim=0, ssp_space=None, representation="one-hot"):
 	t = len(game.giveI) if player=='investor' else len(game.giveT)
@@ -26,7 +27,10 @@ def get_state(player, game, agent, dim=0, ssp_space=None, representation="one-ho
 	if agent=="NEF":
 		if representation=="ssp":
 			c = game.coins if player=='investor' else game.giveI[-1]*game.match
-			return ssp_space.encode(np.array([[t, c]]))[0]
+			vector = np.zeros((dim))
+			if t < 5:
+				vector = ssp_space.encode(np.array([[t, c]]))[0]
+			return vector
 		elif representation=="onehot":
 			index = t if player=='investor' else t * (game.coins*game.match+1) + game.giveI[-1]*game.match
 			vector = np.zeros((dim))
@@ -164,17 +168,19 @@ class NEFEnvironment():
 
 def printSimilarities(agent):
 	if agent.player=='investor':
-		ssps = np.zeros((5, agent.nStates))
-		for turn in range(5):
+		ssps = np.zeros((6, agent.nStates))
+		for turn in range(6):
 			ssps[turn] = agent.ssp_space.encode(np.array([[turn, 10]]))[0]
-		for pair in itertools.combinations(range(5), 2):
+			if turn==5: ssps[turn] = np.zeros((agent.nStates))
+		for pair in itertools.combinations(range(6), 2):
 			print(f"similarity t={pair[0]}, t={pair[1]} = {np.dot(ssps[pair[0]], ssps[pair[1]])}")
 	elif agent.player=='trustee':
-		ssps = np.zeros((5, 31, agent.nStates))
-		for turn in range(5):
+		ssps = np.zeros((6, 31, agent.nStates))
+		for turn in range(6):
 			for coin in range(31):
 				ssps[turn, coin] = agent.ssp_space.encode(np.array([[turn, coin]]))[0]
-		tcList = itertools.product(range(5), range(31))
+				if turn==5: ssps[turn, coin] = np.zeros((agent.nStates))
+		tcList = itertools.product(range(6), range(31))
 		for pair in itertools.combinations(tcList, 2):
 			print(f"similarity t={pair[0]}, t={pair[1]} = {np.dot(ssps[pair[0]], ssps[pair[1]])}")
 	print(f"components, mean abs {np.mean(np.abs(ssps)):.3}, range {np.min(ssps)} {np.max(ssps)}")
@@ -201,8 +207,9 @@ def setEncodersIntercepts(agent, load=False, save=True, iterations=0, thrSpikeDi
 		agent.ssp_space = HexagonalSSPSpace(domain_dim=2, ssp_dim=agent.nStates, domain_bounds=None,
 			length_scale=np.array([[agent.length_scale_turn], [agent.length_scale_coin]]))
 		agent.nStates = agent.ssp_space.ssp_dim
+		print('nStates actual', agent.nStates)
 		agent.intercepts = Choice([sparsity_to_x_intercept(agent.nStates, agent.sparsity)])
-		agent.printSimilarities()
+		printSimilarities(agent)
 		if load:
 			encoders = np.load(f"data/NEF_encoders_player{agent.player}_seed{agent.seed}.npz")['encoders']
 			assert encoders.shape[0] == agent.nNeuronsState
