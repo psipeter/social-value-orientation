@@ -207,9 +207,9 @@ def setEncodersIntercepts(agent, load=False, save=True, iterations=0, thrSpikeDi
 		agent.ssp_space = HexagonalSSPSpace(domain_dim=2, ssp_dim=agent.nStates, domain_bounds=None,
 			length_scale=np.array([[agent.length_scale_turn], [agent.length_scale_coin]]))
 		agent.nStates = agent.ssp_space.ssp_dim
-		print('nStates actual', agent.nStates)
+		# print('nStates actual', agent.nStates)
 		agent.intercepts = Choice([sparsity_to_x_intercept(agent.nStates, agent.sparsity)])
-		printSimilarities(agent)
+		# printSimilarities(agent)
 		if load:
 			encoders = np.load(f"data/NEF_encoders_player{agent.player}_seed{agent.seed}.npz")['encoders']
 			assert encoders.shape[0] == agent.nNeuronsState

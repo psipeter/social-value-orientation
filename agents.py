@@ -659,7 +659,7 @@ class NEF():
 		self.simulator.run(self.t1, progress_bar=False)
 		self.true_current = game_state
 		self.decoded_current = self.simulator.data[self.network.p_state][-1]
-		print('value', self.cleanPrint(self.network.p_value, self.t1))
+		# print('value', self.cleanPrint(self.network.p_value, self.t1))
 		# print('explore', self.cleanPrint(self.network.p_explore_input, 10*self.dt))
 		# print('choice', self.cleanPrint(self.network.p_choice, 10*self.dt))
 		# print('WM value', self.cleanPrint(self.network.p_WM_value, 10*self.dt))
