@@ -49,23 +49,23 @@ def play_game(investor, trustee, gameID, train):
 		trustee.learn(game)
 	return dfs
 
-def run(agents, nGames, opponent, verbose=False, train=True):
+def run(agents, nGames, opponent, verbose=False, train=True, t4tSeed=0):
     dfs = []
     player = agents[0].player
     for a, agent in enumerate(agents):
         if verbose: print(f"{agent.ID}")
         if player=='investor' and opponent=='greedy':
-            t4ts = make_greedy_trustees(nGames, seed=a)
+            t4ts = make_greedy_trustees(nGames, seed=t4tSeed+a)
         elif player=='investor' and opponent=='generous':
-            t4ts = make_generous_trustees(nGames, seed=a)
+            t4ts = make_generous_trustees(nGames, seed=t4tSeed+a)
         elif player=='investor' and opponent=='test':
-            t4ts = make_test_trustees(nGames, seed=a)
+            t4ts = make_test_trustees(nGames, seed=t4tSeed+a)
         elif player=='trustee' and opponent=='greedy':
-            t4ts = make_greedy_investors(nGames, seed=a)
+            t4ts = make_greedy_investors(nGames, seed=t4tSeed+a)
         elif player=='trustee' and opponent=='generous':
-            t4ts = make_generous_investors(nGames, seed=a)
+            t4ts = make_generous_investors(nGames, seed=t4tSeed+a)
         elif player=='trustee' and opponent=='test':
-            t4ts = make_test_investors(nGames, seed=a)
+            t4ts = make_test_investors(nGames, seed=t4tSeed+a)
         for g in range(nGames):
             start = time.time()
             if player=='investor':

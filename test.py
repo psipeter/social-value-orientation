@@ -13,13 +13,13 @@ from T4T import *
 
 palette = sns.color_palette("colorblind")
 sns.set_palette(palette)
-sns.set(context='paper', style='white', font='CMU Serif', rc={'font.size':12, 'mathtext.fontset': 'cm'})
+sns.set(context='paper', style='white', rc={'font.size':12, 'mathtext.fontset': 'cm'})
 
 player = 'investor'
 player2 = 'trustee'
 opponent = "greedy"
-nGames = 3
-nAgents = 2
+nGames = 15
+nAgents = 25
 
 agents = []
 IDs = []
@@ -29,15 +29,14 @@ for n in range(nAgents):
             'investor',
             ID=f"NEF{n}",
             seed=n,
-            gamma=0.5,
-            tau=4,
-            explore='exponential',
+            gamma=0.1,
+            explore='linear',
             update='Q-learning',
             representation='ssp',
             radius=0.5,
             nNeuronsState=16000,
             nStates=160,
-            alpha=1e-8,
+            alpha=1e-7,
             w_s=1.0,
             w_o=0.0,
             w_i=0.0,

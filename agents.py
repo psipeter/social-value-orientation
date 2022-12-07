@@ -87,7 +87,7 @@ class TQ():
 
 class DQN():
 
-	class value(torch.nn.Module):
+	class critic(torch.nn.Module):
 		def __init__(self, nNeurons, nStates, nActions):
 			torch.nn.Module.__init__(self)
 			self.input = torch.nn.Linear(nStates, nNeurons)
@@ -131,7 +131,7 @@ class DQN():
 	def reinitialize(self, player):
 		self.player = player
 		torch.manual_seed(self.seed)
-		self.value = self.value(self.nNeurons, self.nStates, self.nActions)
+		self.value = self.critic(self.nNeurons, self.nStates, self.nActions)
 		self.optimizer = torch.optim.Adam(self.value.parameters(), self.alpha)
 		self.value_history = []
 		self.state_history = []

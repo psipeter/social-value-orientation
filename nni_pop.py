@@ -37,6 +37,19 @@ def makePopulation(args):
 			}
 			agent = DQN(args['player'], ID="DQN"+str(n), seed=n, nGames=15, **params)
 		elif args["architecture"]=="IBL":
+			params = {
+				"nActions": 11 if args['player']=='investor' else 31,
+				"decay": np.max([0, rng.normal(args['decay'], 0.2*args['decay'])]),
+				"sigma": rng.normal(args['sigma'], 0.2*args['sigma']),
+				"thrA": rng.normal(args['thrA'], 0.2),
+				"tau": rng.normal(args['tau'], 0.2*args['tau']),
+				"gamma": rng.normal(args['gamma'], 0.2*args['gamma']),
+				"explore": args['explore'],
+				"update": args['update'],
+				"w_s": args['w_s'],
+				"w_i": rng.uniform(0, args['w_i']),
+				"w_o": rng.uniform(0, args['w_o']),
+			}
 			agent = IBL(args['player'], ID="IBL"+str(n), seed=n, nGames=15, **params)
 		elif args["architecture"]=="NEF":
 			agent = NEF(args['player'], ID="NEF"+str(n), seed=n, nGames=15, **params)
@@ -68,7 +81,11 @@ def addSVO(agents, data):
 	labeled = pd.concat(dfs, ignore_index=True)
 	return labeled
 
-def empSimOverlap(emp, sim):
+def empSimOverlap(emp, sim, args):
+	if args['optimize_target']=='final':
+		gameFinal = args['nGames']-args['nFinal']
+		emp = emp.query('game>@gameFinal')
+		sim = sim.query('game>@gameFinal')
 	empGen = emp['generosity'].to_numpy()
 	simGen = sim['generosity'].to_numpy()
 	overlap = scipy.stats.ks_2samp(empGen, simGen)[0]
@@ -77,14 +94,25 @@ def empSimOverlap(emp, sim):
 def main(args):
 	agents = makePopulation(args)
 	IDs = [agent.ID for agent in agents]
-	data = run(agents, nGames=args['nGames'], opponent=args["opponent"], train=True).query("ID in @IDs")
+	rng = args['popSeed']
+	dfs = []
+	for i in range(args['nIter']):
+		for agent in agents: agent.reinitialize(args['player'])
+		df = run(agents, nGames=args['nGames'], opponent=args["opponent"], t4tSeed=i).query("ID in @IDs")
+		df['t4tSeed'] = [i for _ in range(df.shape[0])]
+		dfs.append(df)
 
+	data = pd.concat(dfs, ignore_index=True)
 	pop, selected = selectLearners(agents, data)
-	sim = addSVO(pop, selected)
-	emp = pd.read_pickle("data/human_data_cleaned.pkl")
-	overlap = empSimOverlap(emp, sim)
-	nni.report_final_result(overlap)
-	print(overlap)
+	if len(pop)==0:
+		nni.report_final_result(1)
+	else:
+		sim = addSVO(pop, selected)
+		player = args['player']
+		opponent = args['opponent']
+		emp = pd.read_pickle("data/human_data_cleaned.pkl").query('player==@player & opponent==@opponent')
+		overlap = empSimOverlap(emp, sim, args)
+		nni.report_final_result(overlap)
 
 
 if __name__ == '__main__':
@@ -93,21 +121,52 @@ if __name__ == '__main__':
 		"player": "investor",
 		"opponent": "greedy",
 		"nAgents": 200,
+		"nIter": 5,
 		'nGames': 15,
 		"explore": 'exponential',
 		"update": 'Q-learning',
 		"w_s": 1,
+		"w_o": 0.2,
+		"w_i": 0.2,
+		"popSeed": 0,
+		"nFinal": 3,
+		"optimize_target": 'all'
 	}
 
-	# p2 = {
-	# 	"nNeurons": 200,#,{"_type":"randint","_value":[20, 200]},
-	# 	"tau": 5,#{"_type":"uniform","_value":[1.0, 20.0]},
-	# 	"alpha": 0.1,#,{"_type":"loguniform","_value":[0.01, 3.0]},
-	# 	"gamma": 0.1,#{"_type":"uniform","_value":[0.0, 1.0]},
-	# 	"w_o": 0.4,#{"_type":"uniform","_value":[0.0, 1.0]},
-	# 	"w_i": 0.2,#{"_type":"uniform","_value":[0.0, 1.0]},
-	# }
-	# params = params | p2
+	p = {
+		"popSeed": 0,
+		# "decay": 0.5,
+		# 'sigma': 0.1,
+		# "thrA": -1.0,
+		"nNeurons": 60,
+		"alpha": 0.1,
+		"tau": 5,
+		"gamma": 0.5,
+		"w_o": 0.2,
+		"w_i": 0.2,
+	}
+	params = params | p
+
+# {
+#     "popSeed": {"_type":"randint","_value":[0, 1000]},
+#     "nNeurons": {"_type":"randint","_value":[50, 100]},
+#     "tau": {"_type":"quniform","_value":[1.0, 20.0, 0.1]},
+#     "alpha": {"_type":"qloguniform","_value":[0.01, 1.0, 0.01]},
+#     "gamma": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
+#     "w_o": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
+#     "w_i": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
+# }
+
+# {
+#     "popSeed": {"_type":"randint","_value":[0, 1000]},
+#     "decay": {"_type":"quniform","_value":[0.0, 3.0, 0.01]},
+#     "sigma": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
+#     "thrA": {"_type":"quniform","_value":[-3.0, 3.0, 0.01]},
+#     "tau": {"_type":"quniform","_value":[1.0, 20.0, 0.1]},
+#     "gamma": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
+#     "w_o": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
+#     "w_i": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
+# }
 
 	optimized_params = nni.get_next_parameter()
 	params.update(optimized_params)

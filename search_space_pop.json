@@ -1,9 +1,6 @@
 {
-    "popSeed": {"_type":"randint","_value":[0, 1000]},
-    "nNeurons": {"_type":"randint","_value":[50, 100]},
+    "nNeurons": {"_type":"randint","_value":[60, 80]},
     "tau": {"_type":"quniform","_value":[1.0, 20.0, 0.1]},
     "alpha": {"_type":"qloguniform","_value":[0.01, 1.0, 0.01]},
     "gamma": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
-    "w_o": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
-    "w_i": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
 }
