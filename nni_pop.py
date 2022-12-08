@@ -81,6 +81,26 @@ def addSVO(agents, data):
 	labeled = pd.concat(dfs, ignore_index=True)
 	return labeled
 
+def addLabel(agents, data, args):
+    IDs = [agent.ID for agent in agents]
+    w_is = [agent.w_i for agent in agents]
+    w_os = [agent.w_o for agent in agents]
+    nProself = 0
+    nProsocial = 0
+    dfs = []
+    for i, ID in enumerate(IDs):
+        if w_is[i] + w_os[i] > args['thrSVO']:
+            orientation = 'prosocial'
+            nProsocial += 1
+        else:
+            orientation = "proself"
+            nProself += 1
+        D = data.query("ID == @ID").copy()
+        D['orientation'] = [orientation for _ in range(D.shape[0])]
+        dfs.append(D)
+    labeled = pd.concat(dfs, ignore_index=True)
+    return labeled, nProself, nProsocial
+
 def empSimOverlap(emp, sim, args):
 	if args['optimize_target']=='final':
 		gameFinal = args['nGames']-args['nFinal']
@@ -88,7 +108,12 @@ def empSimOverlap(emp, sim, args):
 		sim = sim.query('game>@gameFinal')
 	empGen = emp['generosity'].to_numpy()
 	simGen = sim['generosity'].to_numpy()
-	overlap = scipy.stats.ks_2samp(empGen, simGen)[0]
+	if args['overlap_test']=='ks':
+		overlap = scipy.stats.ks_2samp(empGen, simGen)[0]
+	if args['overlap_test']=='rmse':
+		empHist = np.histogram(empGen, bins=np.arange(0, 1.1, 0.1))[0]
+		simHist = np.histogram(simGen, bins=np.arange(0, 1.1, 0.1))[0]
+		overlap = np.sqrt(np.mean(np.square(empHist-simHist)))
 	return overlap
 
 def main(args):
@@ -104,10 +129,11 @@ def main(args):
 
 	data = pd.concat(dfs, ignore_index=True)
 	pop, selected = selectLearners(agents, data)
-	if len(pop)==0:
+	sim, nProself, nProsocial = addLabel(pop, selected, args)
+	if nProsocial<args['popSize'] or nProself<args['popSize']:
 		nni.report_final_result(1)
 	else:
-		sim = addSVO(pop, selected)
+		# sim = addSVO(pop, selected)
 		player = args['player']
 		opponent = args['opponent']
 		emp = pd.read_pickle("data/human_data_cleaned.pkl").query('player==@player & opponent==@opponent')
@@ -120,30 +146,34 @@ if __name__ == '__main__':
 		"architecture": "DQN",
 		"player": "investor",
 		"opponent": "greedy",
-		"nAgents": 200,
-		"nIter": 5,
+		"nAgents": 400,
+		"nIter": 3,
 		'nGames': 15,
 		"explore": 'exponential',
 		"update": 'Q-learning',
 		"w_s": 1,
 		"w_o": 0.2,
 		"w_i": 0.2,
-		"popSeed": 0,
 		"nFinal": 3,
-		"optimize_target": 'all'
+		"optimize_target": 'all',
+		'overlap_test': 'ks',
+		"popSize": 30,
+		"thrSVO": 0.2,
 	}
 
 	p = {
-		"popSeed": 0,
-		# "decay": 0.5,
-		# 'sigma': 0.1,
-		# "thrA": -1.0,
-		"nNeurons": 60,
-		"alpha": 0.1,
-		"tau": 5,
-		"gamma": 0.5,
-		"w_o": 0.2,
-		"w_i": 0.2,
+	# 	"popSeed": 0,
+	# 	"tau": 5,
+	# 	"gamma": 0.5,
+	# 	"w_o": 0.2,
+	# 	"w_i": 0.2,
+
+	# 	"decay": 0.5,
+	# 	'sigma': 0.1,
+	# 	"thrA": -1.0,
+
+		"nNeurons": 50,
+	# 	# "alpha": 0.1,
 	}
 	params = params | p
 
