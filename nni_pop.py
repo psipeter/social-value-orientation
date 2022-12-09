@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import time
 import nni
+import json
 from statannotations.Annotator import Annotator
 from matplotlib.ticker import FormatStrFormatter
 
@@ -90,6 +91,7 @@ def addLabel(agents, data, args):
     dfs = []
     for i, ID in enumerate(IDs):
         if w_is[i] + w_os[i] > args['thrSVO']:
+        # if w_is[i] + w_os[i] > (args['w_i']+args['w_o'])/2:
             orientation = 'prosocial'
             nProsocial += 1
         else:
@@ -142,40 +144,8 @@ def main(args):
 
 
 if __name__ == '__main__':
-	params = {
-		"architecture": "DQN",
-		"player": "investor",
-		"opponent": "greedy",
-		"nAgents": 400,
-		"nIter": 3,
-		'nGames': 15,
-		"explore": 'exponential',
-		"update": 'Q-learning',
-		"w_s": 1,
-		"w_o": 0.2,
-		"w_i": 0.2,
-		"nFinal": 3,
-		"optimize_target": 'all',
-		'overlap_test': 'ks',
-		"popSize": 30,
-		"thrSVO": 0.2,
-	}
-
-	p = {
-	# 	"popSeed": 0,
-	# 	"tau": 5,
-	# 	"gamma": 0.5,
-	# 	"w_o": 0.2,
-	# 	"w_i": 0.2,
-
-	# 	"decay": 0.5,
-	# 	'sigma': 0.1,
-	# 	"thrA": -1.0,
-
-		"nNeurons": 50,
-	# 	# "alpha": 0.1,
-	}
-	params = params | p
+	f = open('fixed_space_pop.json')
+	params = json.load(f)
 
 # {
 #     "popSeed": {"_type":"randint","_value":[0, 1000]},

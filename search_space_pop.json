@@ -1,6 +1,6 @@
 {
      "popSeed": {"_type":"randint","_value":[0, 1000]},
-     "tau": {"_type":"quniform","_value":[1.0, 20.0, 0.1]},
+     "tau": {"_type":"quniform","_value":[1.0, 10.0, 0.1]},
      "alpha": {"_type":"qloguniform","_value":[0.001, 1.0, 0.001]},
      "gamma": {"_type":"quniform","_value":[0.0, 1.0, 0.01]},
 }
