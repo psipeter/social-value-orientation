@@ -1,5 +1,5 @@
 {
-	"architecture": "DQN",
+	"architecture": "IBL",
 	"player": "investor",
 	"opponent": "generous",
 	"nAgents": 200,
@@ -15,6 +15,6 @@
 	"optimize_target": "final",
 	"overlap_test": "ks",
 	"popSize": 25,
-	"penalizeSimilarity": 0.1,
+	"penalizeSimilarity": 0.15,
 	"nNeurons": 50
 }
