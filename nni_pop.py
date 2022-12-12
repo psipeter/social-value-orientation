@@ -53,6 +53,16 @@ def makePopulation(args):
 			}
 			agent = IBL(args['player'], ID="IBL"+str(n), seed=n, nGames=15, **params)
 		elif args["architecture"]=="NEF":
+			params = {
+				"nActions": 11 if args['player']=='investor' else 31,
+				"tau": rng.normal(args['tau'], 0.2*args['tau']),
+				"gamma": rng.normal(args['gamma'], 0.2*args['gamma']),
+				"explore": args['explore'],
+				"update": args['update'],
+				"w_s": args['w_s'],
+				"w_i": rng.uniform(0, args['w_i']),
+				"w_o": rng.uniform(0, args['w_o']),
+			}
 			agent = NEF(args['player'], ID="NEF"+str(n), seed=n, nGames=15, **params)
 		agents.append(agent)
 	return agents
@@ -103,7 +113,7 @@ def addLabel(agents, data, args):
     labeled = pd.concat(dfs, ignore_index=True)
     return labeled, nProself, nProsocial
 
-def empSimOverlap(emp, sim, args):
+def overlap(emp, sim, args):
 	if args['optimize_target']=='final':
 		gameFinal = args['nGames']-args['nFinal']
 		emp = emp.query('game>@gameFinal')
@@ -123,7 +133,7 @@ def main(args):
 	IDs = [agent.ID for agent in agents]
 	rng = args['popSeed']
 	dfs = []
-	for i in range(args['nIter']):
+	for i in range(args['nTrain']):
 		for agent in agents: agent.reinitialize(args['player'])
 		df = run(agents, nGames=args['nGames'], opponent=args["opponent"], t4tSeed=i).query("ID in @IDs")
 		df['t4tSeed'] = [i for _ in range(df.shape[0])]
@@ -132,21 +142,36 @@ def main(args):
 	data = pd.concat(dfs, ignore_index=True)
 	pop, selected = selectLearners(agents, data)
 	sim, nProself, nProsocial = addLabel(pop, selected, args)
+	# print(nProself, nProsocial)
 	if nProsocial<args['popSize'] or nProself<args['popSize']:
-		nni.report_final_result(1)
+		nni.report_final_result(3)
 	else:
 		# sim = addSVO(pop, selected)
 		player = args['player']
 		opponent = args['opponent']
 		emp = pd.read_pickle("data/human_data_cleaned.pkl").query('player==@player & opponent==@opponent')
-		overlap = empSimOverlap(emp, sim, args)
-		nni.report_final_result(overlap)
-
+		# overlap = empSimOverlap(emp, sim, args)
+		# nni.report_final_result(overlap)
+		overlapProself = overlap(emp.query("orientation=='proself'"), sim.query("orientation=='proself'"), args)
+		overlapProsocial = overlap(emp.query("orientation=='prosocial'"), sim.query("orientation=='prosocial'"), args)
+		penalty = 1 - overlap(sim.query("orientation=='proself'"), sim.query("orientation=='prosocial'"), args)
+		nni.report_final_result(overlapProself+overlapProsocial+args['penalizeSimilarity']*penalty)
+		# print(overlapProself)
+		# print(overlapProsocial)
+		# print(penalty)
 
 if __name__ == '__main__':
 	f = open('fixed_space_pop.json')
 	params = json.load(f)
 
+	# p2 = {
+	# 	"popSeed": 1,
+	# 	"tau": 5,
+	# 	"alpha": 0.01,
+	# 	"gamma": 0.5,
+	# 	"thrSVO": 0.3,
+	# }
+	# params = params | p2
 # {
 #     "popSeed": {"_type":"randint","_value":[0, 1000]},
 #     "nNeurons": {"_type":"randint","_value":[50, 100]},
