@@ -13,7 +13,7 @@ from utils import *
 from plots import *
 from agents import *
 from T4T import *
-from nni_pop import makePopulation, selectLearners, addSVO, addLabel, empSimOverlap
+from nni_pop import *
 
 palette = sns.color_palette("colorblind")
 sns.set_palette(palette)
@@ -25,7 +25,7 @@ def rerun(agents, args, t4tSeedStart=0):
         print(f'test {i}')
         for agent in agents:
             agent.reinitialize(args['player'])
-        df = run(agents, nGames=args['nGames'], opponent=args["opponent"], t4tSeed=t4tSeedStart+i).query("ID in @IDs")
+        df = run(agents, nGames=args['nGames'], opponent=args["opponent"], t4tSeed=t4tSeedStart+i, verbose=True).query("ID in @IDs")
         df['t4tSeed'] = [t4tSeedStart+i for _ in range(df.shape[0])]
         dfs.append(df)
     data = pd.concat(dfs, ignore_index=True)
@@ -75,7 +75,7 @@ params = {
     "architecture": "NEF",
     "player": "investor",
     "opponent": "generous",
-    "nAgents": 10,
+    "nAgents": 1,
     "nTrain": 1,
     "nTest": 1,
     "nGames": 15,
@@ -87,16 +87,17 @@ params = {
     "nFinal": 3,
     "optimize_target": "final",
     "overlap_test": "ks",
-    "popSize": 2,
-    "nNeurons": 50
+    "popSize": 1,
 }
 
 params2 = {
-    "popSeed": 39,
-    "thrSVO": 0.36,
+    "popSeed": 1,
+    "thrSVO": 0.3,
     "tau": 6.5,
-    "alpha": 0.025,
-    "gamma": 0.58
+    "alpha": 1e-7,
+    "gamma": 0.5,
+    "nStates": 160,
+    "radius": 0.5,
 }
 
 args = params | params2
@@ -114,7 +115,9 @@ sim, nProself, nProsocial = addLabel(pop, selected, args)
 print(f"proself {nProself}, prosocial {nProsocial}")
 tTestAndPlot(emp, sim, args, 'generosity')
 
-overlapProself = empSimOverlap(emp.query("orientation=='proself'"), sim.query("orientation=='proself'"), args)
-overlapProsocial = empSimOverlap(emp.query("orientation=='prosocial'"), sim.query("orientation=='prosocial'"), args)
+overlapProself = overlap(emp.query("orientation=='proself'"), sim.query("orientation=='proself'"), args)
+overlapProsocial = overlap(emp.query("orientation=='prosocial'"), sim.query("orientation=='prosocial'"), args)
 print(overlapProself)
 print(overlapProsocial)
+
+LTPlot(pop, sim, args)

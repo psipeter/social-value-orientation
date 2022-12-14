@@ -1,7 +1,7 @@
 {
-	"architecture": "IBL",
-	"player": "investor",
-	"opponent": "generous",
+	"architecture": "DQN",
+	"player": "trustee",
+	"opponent": "greedy",
 	"nAgents": 200,
 	"nTrain": 1,
 	"nTest": 1,
@@ -9,12 +9,13 @@
 	"explore": "exponential",
 	"update": "Q-learning",
 	"w_s": 1,
-	"w_o": 0.3,
-	"w_i": 0.3,
+	"w_o": 0.2,
+	"w_i": 0.2,
 	"nFinal": 3,
 	"optimize_target": "final",
 	"overlap_test": "ks",
 	"popSize": 25,
-	"penalizeSimilarity": 0.15,
-	"nNeurons": 50
+	"penalizeSimilarity": 0.0,
+	"nNeurons": 50,
+	"thrSVO": 0.2
 }

@@ -338,10 +338,10 @@ class IBL():
 class NEF():
 
 	def __init__(self, player, seed=0, nActions=11, ID="NEF",
-			alpha=1e-9, gamma=0.5, tau=4, explore='linear', nGames=100, representation='onehot', update='SARSA',
-			nNeuronsState=6, nNeuronsError=10000, nNeuronsValue=1000, nNeuronsChoice=1000, nArrayState=300, nNeuronsMemory=300, nNeuronsIndex=300, 
-			nStates=6, sparsity=0.05, length_scale_turn=0.1, length_scale_coin=3.0,
-			neuronType=nengo.LIFRate(), maxRates=Uniform(200, 400), normalize=True, radius=0.3,
+			alpha=1e-7, gamma=0.5, tau=4, explore='linear', nGames=100, representation='onehot', update='SARSA',
+			nNeuronsState=15000, nNeuronsError=10000, nNeuronsValue=1000, nNeuronsChoice=1000, nArrayState=300, nNeuronsMemory=300, nNeuronsIndex=300, 
+			nStates=160, sparsity=0.05, length_scale_turn=0.1, length_scale_coin=3.0,
+			neuronType=nengo.LIFRate(), maxRates=Uniform(200, 400), normalize=True, radius=0.5,
 			dt=1e-3, t1=1e-1, t2=1e-1, t3=1e-1, tR=3e-2,
 			w_s=1, w_o=0, w_i=0):
 		self.player = player

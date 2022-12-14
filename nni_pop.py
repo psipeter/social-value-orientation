@@ -59,6 +59,9 @@ def makePopulation(args):
 				"gamma": rng.normal(args['gamma'], 0.2*args['gamma']),
 				"explore": args['explore'],
 				"update": args['update'],
+	            "radius": rng.normal(args['radius'], 0.2*args['radius']),
+	            "nStates": int(rng.normal(args['nStates'], 0.2*args['nStates'])),
+	            "alpha": rng.normal(args['alpha'], 0.2*args['alpha']),
 				"w_s": args['w_s'],
 				"w_i": rng.uniform(0, args['w_i']),
 				"w_o": rng.uniform(0, args['w_o']),
@@ -67,12 +70,13 @@ def makePopulation(args):
 		agents.append(agent)
 	return agents
 
-def selectLearners(agents, data, thr_slope=0.1, thr_p=0.1):
+def selectLearners(agents, data, args, thr_slope=0.1, thr_p=0.1):
 	IDs = [agent.ID for agent in agents]
 	agentsSelected = []
 	IDsSelected = []
+	player = args['player']
 	for i, ID in enumerate(IDs):
-		D1 = data.query('ID==@ID and player=="investor"')
+		D1 = data.query('ID==@ID and player==@player')
 		res1 = scipy.stats.linregress(D1['game'], D1['coins'])
 		if res1.slope>thr_slope and res1.pvalue < thr_p:
 			agentsSelected.append(agents[i])
@@ -128,6 +132,18 @@ def overlap(emp, sim, args):
 		overlap = np.sqrt(np.mean(np.square(empHist-simHist)))
 	return overlap
 
+def defect(emp, sim, args):
+	gameFinal = args['nGames']-args['nFinal']
+	empGen = emp.query('game>@gameFinal & turn==4')['generosity'].to_numpy()
+	simGen = sim.query('game>@gameFinal & turn==4')['generosity'].to_numpy()
+	if args['overlap_test']=='ks':
+		overlap = scipy.stats.ks_2samp(empGen, simGen)[0]
+	if args['overlap_test']=='rmse':
+		empHist = np.histogram(empGen, bins=np.arange(0, 1.1, 0.1))[0]
+		simHist = np.histogram(simGen, bins=np.arange(0, 1.1, 0.1))[0]
+		overlap = np.sqrt(np.mean(np.square(empHist-simHist)))
+	return overlap
+
 def main(args):
 	agents = makePopulation(args)
 	IDs = [agent.ID for agent in agents]
@@ -140,9 +156,13 @@ def main(args):
 		dfs.append(df)
 
 	data = pd.concat(dfs, ignore_index=True)
-	pop, selected = selectLearners(agents, data)
+	# pop, selected = selectLearners(agents, data, args)
+	pop, selected = selectLearners(agents, data, args, thr_slope=0)
+	if len(pop)<args['popSize']:
+		nni.report_final_result(3)
+		return
 	sim, nProself, nProsocial = addLabel(pop, selected, args)
-	# print(nProself, nProsocial)
+	print(nProself, nProsocial)
 	if nProsocial<args['popSize'] or nProself<args['popSize']:
 		nni.report_final_result(3)
 	else:
@@ -152,24 +172,28 @@ def main(args):
 		emp = pd.read_pickle("data/human_data_cleaned.pkl").query('player==@player & opponent==@opponent')
 		# overlap = empSimOverlap(emp, sim, args)
 		# nni.report_final_result(overlap)
-		overlapProself = overlap(emp.query("orientation=='proself'"), sim.query("orientation=='proself'"), args)
-		overlapProsocial = overlap(emp.query("orientation=='prosocial'"), sim.query("orientation=='prosocial'"), args)
-		penalty = 1 - overlap(sim.query("orientation=='proself'"), sim.query("orientation=='prosocial'"), args)
-		nni.report_final_result(overlapProself+overlapProsocial+args['penalizeSimilarity']*penalty)
+
+		# overlapProself = overlap(emp.query("orientation=='proself'"), sim.query("orientation=='proself'"), args)
+		# overlapProsocial = overlap(emp.query("orientation=='prosocial'"), sim.query("orientation=='prosocial'"), args)
+		# penalty = 1 - overlap(sim.query("orientation=='proself'"), sim.query("orientation=='prosocial'"), args)
+		# nni.report_final_result(overlapProself+overlapProsocial+args['penalizeSimilarity']*penalty)
 		# print(overlapProself)
 		# print(overlapProsocial)
 		# print(penalty)
+		defectProself = defect(emp.query("orientation=='proself'"), sim.query("orientation=='proself'"), args)
+		defectProsocial = defect(emp.query("orientation=='prosocial'"), sim.query("orientation=='prosocial'"), args)
+		nni.report_final_result(defectProself+defectProsocial)
+
 
 if __name__ == '__main__':
 	f = open('fixed_space_pop.json')
 	params = json.load(f)
 
 	# p2 = {
-	# 	"popSeed": 1,
+	# 	"popSeed": 0,
 	# 	"tau": 5,
 	# 	"alpha": 0.01,
-	# 	"gamma": 0.5,
-	# 	"thrSVO": 0.3,
+	# 	"gamma": 0.8,
 	# }
 	# params = params | p2
 # {
